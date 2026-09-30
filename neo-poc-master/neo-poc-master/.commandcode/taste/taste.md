@@ -1,1 +1,0 @@
-- Does not use Docker; prefers running projects against locally installed services/runtimes (e.g. local PostgreSQL, Node, Java/Maven) rather than containers, and expects setup instructions adapted to that. Confidence: 0.75
