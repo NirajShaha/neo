@@ -1,0 +1,32 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: neo-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: manager
+      MYSQL_DATABASE: neo
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysqldata:/var/lib/mysql
+      - ./infra/mysql/init:/docker-entrypoint-initdb.d:ro
+
+  backend:
+    build: .
+    container_name: neo-backend
+    depends_on:
+      - mysql
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/neo
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: manager
+      NEO_JWT_SECRET: dev-secret-change-me-min-32-chars-long-xxxxxx
+      STORAGE_DIR: /data/storage
+    ports:
+      - "8080:8080"
+    volumes:
+      - neostorage:/data/storage
+
+volumes:
+  mysqldata:
+  neostorage:

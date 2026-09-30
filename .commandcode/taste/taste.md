@@ -1,0 +1,7 @@
+- When extending frontend, preserve existing styling/design system and make new pages match it rather than restyling. Confidence: 0.95
+- When a reference/base project exists, reuse its integration patterns and feature set for new work rather than designing greenfield. Confidence: 0.85
+- When given a workflow diagram/spec for migration, implement the new backend to match it exactly. Confidence: 0.85
+- Prefers Java 25 for backend services. Confidence: 0.85
+- Prefers MySQL over PostgreSQL with schema.sql-managed schema for persistence. Confidence: 0.85
+- Prefers simple creator/approver role split (user creates, manager approves/rejects) with role-based approvals and notifications surfaced in both frontend and backend. Confidence: 0.85
+- Prefers complete end-to-end wiring with all frontend screens connected to backend and workflow and all BPMN flows working, rather than partial or stubbed integration. Confidence: 0.9

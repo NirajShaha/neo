@@ -1,0 +1,70 @@
+# Backend (Java/Maven)
+backend/target/
+backend/.classpath
+backend/.project
+backend/.settings/
+backend/*.iml
+backend/.idea/
+backend/bin/
+backend/out/
+backend/*.log
+backend/dependency-reduced-pom.xml
+
+# Frontend (Node.js/Next.js)
+frontend/node_modules/
+frontend/.next/
+frontend/dist/
+frontend/build/
+frontend/.vercel/
+frontend/.env.local
+frontend/.env.*.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.pnp
+frontend/.pnp.js
+
+# IDE and Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*~
+.DS_Store
+Thumbs.db
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+*.iml
+.vscode-wsl
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Docker
+.docker/
+.dockerignore
+
+# Development
+.env
+.env.local
+*.pem
+*.key
+
+# Temporary files
+*.tmp
+*.bak
+.tmp/
+temp/
+
+# Turbo and Build
+.turbo/
+dist/
