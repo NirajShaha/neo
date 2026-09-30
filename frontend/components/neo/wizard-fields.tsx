@@ -277,7 +277,7 @@ export function SelectField({
         {label}
       </FieldLabel>
       <Select
-        value={value || undefined}
+        value={value || null}
         onValueChange={(v) => onChange(v === "__any" ? "" : (v ?? ""))}
       >
         <SelectTrigger className="h-8 w-full text-xs">
@@ -327,7 +327,7 @@ export function ControlledSelectField<T extends FieldValues>({
             {label}
           </FieldLabel>
           <Select
-            value={(field.value as string | undefined) || undefined}
+            value={(field.value as string | undefined) || null}
             onValueChange={(v) =>
               field.onChange(v === "__any" ? "" : (v ?? ""))
             }

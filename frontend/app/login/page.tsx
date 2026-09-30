@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { useActionState, useState } from "react";
 import { LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { loginAction } from "@/app/actions/auth";
 
 const demoUsers = [
   { email: "manager1@neo.dev", role: "Manager (supervisors)" },
@@ -15,29 +14,9 @@ const demoUsers = [
 ];
 
 export default function LoginPage() {
-  const router = useRouter();
+  const [state, formAction, pending] = useActionState(loginAction, null);
   const [email, setEmail] = useState("manager1@neo.dev");
   const [password, setPassword] = useState("password");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setPending(true);
-    setError(null);
-    const result = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    });
-    setPending(false);
-    if (result?.ok) {
-      router.push("/");
-      router.refresh();
-    } else {
-      setError("Invalid email or password.");
-    }
-  };
 
   return (
     <div className="flex min-h-svh flex-col bg-neutral-100">
@@ -56,13 +35,14 @@ export default function LoginPage() {
             Lifecycle.
           </p>
 
-          <form onSubmit={submit} className="mt-4 space-y-3">
+          <form action={formAction} className="mt-4 space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor="email" className="text-[11px] font-bold text-neutral-700">
                 EMAIL
               </Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -77,6 +57,7 @@ export default function LoginPage() {
               </Label>
               <Input
                 id="password"
+                name="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -86,9 +67,9 @@ export default function LoginPage() {
               />
             </div>
 
-            {error && (
+            {state?.error && (
               <p className="rounded bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
-                {error}
+                {state.error}
               </p>
             )}
 

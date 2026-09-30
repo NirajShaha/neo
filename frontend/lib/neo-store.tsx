@@ -8,7 +8,8 @@ import {
   useMemo,
   useState,
 } from "react"
-import { useSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
+import { backendPath } from "@/lib/constants"
 import type { ClaimRow } from "@/lib/neo-data"
 import { claims as seedClaims } from "@/lib/neo-data"
 
@@ -110,8 +111,6 @@ export const initialMandateForm: MandateForm = {
   stakeholders: "",
   ariba: "",
 }
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080"
 
 type BackendClaim = {
   lineId: string
@@ -297,8 +296,7 @@ type Store = {
 const Ctx = createContext<Store | null>(null)
 
 export function NeoStoreProvider({ children }: { children: React.ReactNode }) {
-  const { data: session } = useSession()
-  const token = (session as { backendToken?: string } | null)?.backendToken
+  const router = useRouter()
   const [backendClaims, setBackendClaims] = useState<ClaimRow[]>([])
   const [backendTasks, setBackendTasks] = useState<TaskRow[]>([])
   const [backendApprovals, setBackendApprovals] = useState<ApprovalRow[]>([])
@@ -310,18 +308,20 @@ export function NeoStoreProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(() => setTick((t) => t + 1), [])
 
   useEffect(() => {
-    if (!token) return
     let cancelled = false
-    const headers = { Authorization: `Bearer ${token}` }
     const load = async () => {
       try {
         const [claimsRes, tasksRes, approvalsRes, notificationsRes] =
           await Promise.all([
-            fetch(`${API_URL}/api/claims`, { headers }),
-            fetch(`${API_URL}/api/tasks`, { headers }),
-            fetch(`${API_URL}/api/mandates/approvals/view`, { headers }),
-            fetch(`${API_URL}/api/notifications`, { headers }),
+            fetch(backendPath("/claims")),
+            fetch(backendPath("/tasks")),
+            fetch(backendPath("/mandates/approvals/view")),
+            fetch(backendPath("/notifications")),
           ])
+        if (claimsRes.status === 401) {
+          if (!cancelled) router.refresh()
+          return
+        }
         if (claimsRes.ok) {
           const rows = (await claimsRes.json()) as BackendClaim[]
           if (!cancelled) setBackendClaims(rows.map(toClaimRow))
@@ -350,7 +350,7 @@ export function NeoStoreProvider({ children }: { children: React.ReactNode }) {
       cancelled = true
       clearInterval(timer)
     }
-  }, [token, tick])
+  }, [tick, router])
 
   const completeTask = useCallback(
     async (
@@ -358,29 +358,21 @@ export function NeoStoreProvider({ children }: { children: React.ReactNode }) {
       decision: "APPROVED" | "REJECTED",
       comment?: string
     ) => {
-      if (!token) throw new Error("Not signed in")
-      const response = await fetch(`${API_URL}/api/tasks/${taskId}/complete`, {
+      const response = await fetch(backendPath(`/tasks/${taskId}/complete`), {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ decision, comment: comment ?? null }),
       })
       if (!response.ok) throw new Error("Failed to complete task")
       refresh()
     },
-    [token, refresh]
+    [refresh]
   )
 
   const markAllNotificationsRead = useCallback(async () => {
-    if (!token) return
-    await fetch(`${API_URL}/api/notifications/read-all`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    await fetch(backendPath("/notifications/read-all"), { method: "POST" })
     setNotifications((items) => items.map((n) => ({ ...n, read: true })))
-  }, [token])
+  }, [])
 
   const value = useMemo<Store>(() => {
     const claims = [...extra, ...backendClaims, ...seedClaims]

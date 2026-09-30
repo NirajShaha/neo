@@ -1,19 +1,29 @@
-import { NextResponse } from "next/server";
-import { auth } from "@/auth";
+import { NextResponse, type NextRequest } from "next/server"
+import { SESSION_COOKIE } from "@/lib/constants"
 
-export default auth((req) => {
-  const pathname = req.nextUrl.pathname;
-  const loggedIn = !!req.auth;
+const PUBLIC_PATHS = ["/login"]
 
-  if (pathname === "/login") {
-    if (loggedIn) return NextResponse.redirect(new URL("/", req.nextUrl));
-    return NextResponse.next();
+export function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl
+  const isPublic = PUBLIC_PATHS.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`)
+  )
+  const hasSession = request.cookies.has(SESSION_COOKIE)
+
+  // Only gate unauthenticated access. We deliberately do NOT redirect away from
+  // /login based on cookie presence: a stale/invalid token would otherwise bounce
+  // between / and /login forever (the pages validate the session, the cookie may
+  // be expired). Page-level checks handle the invalid-session case.
+  if (!hasSession && !isPublic) {
+    const url = request.nextUrl.clone()
+    url.pathname = "/login"
+    url.search = ""
+    return NextResponse.redirect(url)
   }
 
-  if (!loggedIn) return NextResponse.redirect(new URL("/login", req.nextUrl));
-  return NextResponse.next();
-});
+  return NextResponse.next()
+}
 
 export const config = {
-  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
-};
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+}

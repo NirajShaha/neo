@@ -1,9 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { Bell, ChevronDown, House, ListTodo, Stamp, Network } from "lucide-react"
-import { signOut, useSession } from "next-auth/react"
+import { logoutAction } from "@/app/actions/auth"
+import { useNeoSession } from "@/components/neo/session-provider"
 import { cn } from "@/lib/utils"
 import {
   DropdownMenu,
@@ -26,10 +26,9 @@ const tabs = [
 
 export function NeoHeader({ active }: { active?: string }) {
   const current = active ?? "home"
-  const { data: session } = useSession()
+  const session = useNeoSession()
   const { notifications, unreadCount, markAllNotificationsRead } = useNeoStore()
-  const router = useRouter()
-  const userName = session?.user?.name ?? "Buyer Officer"
+  const userName = session?.name ?? "Buyer Officer"
   const initials = userName
     .split(" ")
     .map((part) => part[0])
@@ -133,13 +132,12 @@ export function NeoHeader({ active }: { active?: string }) {
                   {userName}
                 </p>
                 <p className="text-[11px] text-neutral-500">
-                  {session?.user?.email ?? ""}
+                  {session?.email ?? ""}
                 </p>
               </div>
               <DropdownMenuItem
-                onSelect={() => {
-                  signOut({ redirect: false })
-                  router.push("/login")
+                onClick={() => {
+                  logoutAction().catch(() => {})
                 }}
               >
                 Sign out

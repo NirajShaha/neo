@@ -17,7 +17,7 @@ services:
     depends_on:
       - mysql
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/neo
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/neo?nullDatabaseMeansCurrent=true
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: manager
       NEO_JWT_SECRET: dev-secret-change-me-min-32-chars-long-xxxxxx

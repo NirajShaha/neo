@@ -7,17 +7,29 @@ Lifecycle and Mandate Approval flows and the Appian `MCI_*` domain model.
 
 ## Prereqs
 
-- JDK 21+, Maven 3.9+
-- Postgres 17 (or H2 for a smoke run, see below)
+- JDK 25, Maven 3.9+
+- MySQL 8+ (or H2 for a smoke run, see below)
 
-## Run with Postgres
+## Run with a local MySQL
+
+The default datasource targets `localhost:3306/neo` with `root`/`manager` and
+creates the `neo` database on first connect if it is missing:
 
 ```bash
-# start Postgres with app/flowable roles + schemas
-docker compose -f docker-compose.yml up -d postgres
 cd backend
 mvn spring-boot:run
 ```
+
+Both the JPA domain tables and the Flowable `ACT_*` tables are auto-created in
+the `neo` database. Override the connection with `SPRING_DATASOURCE_URL`,
+`SPRING_DATASOURCE_USERNAME` and `SPRING_DATASOURCE_PASSWORD` if needed.
+
+The JDBC URL keeps `nullDatabaseMeansCurrent=true`. Flowable probes for its
+tables via `DatabaseMetaData.getTables(null, ...)`, and without this flag MySQL
+Connector/J matches that against every database on the server. If any other
+database on the instance already contains `ACT_*` tables (e.g. another
+Flowable/Activiti project), Flowable wrongly assumes its schema exists and then
+fails instead of creating its tables in `neo` (flowable/flowable-engine#4095).
 
 Backend listens on `http://localhost:8080`.
 

@@ -3,8 +3,6 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 
 import "./globals.css"
 import { cn } from "@/lib/utils"
-import { NeoStoreProvider } from "@/lib/neo-store"
-import { NeoSessionProvider } from "@/components/neo/session-provider"
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })
 
@@ -30,11 +28,7 @@ export default function RootLayout({
       )}
     >
       <body>
-        <TooltipProvider>
-          <NeoSessionProvider>
-            <NeoStoreProvider>{children}</NeoStoreProvider>
-          </NeoSessionProvider>
-        </TooltipProvider>
+        <TooltipProvider>{children}</TooltipProvider>
       </body>
     </html>
   )

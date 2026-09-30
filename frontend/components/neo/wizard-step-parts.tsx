@@ -67,7 +67,7 @@ function PlantSelect({
   return (
     <div>
       <Select
-        value={value || undefined}
+        value={value || null}
         onValueChange={(v) => onChange(v ?? "")}
       >
         <SelectTrigger className="h-8 w-full text-xs">
