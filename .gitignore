@@ -1,28 +1,45 @@
-# Backend (Java/Maven)
-backend/target/
-backend/.classpath
-backend/.project
-backend/.settings/
-backend/*.iml
-backend/.idea/
-backend/bin/
-backend/out/
-backend/*.log
-backend/dependency-reduced-pom.xml
+# Dependencies
+node_modules/
+.pnpm-store/
 
-# Frontend (Node.js/Next.js)
-frontend/node_modules/
-frontend/.next/
-frontend/dist/
-frontend/build/
-frontend/.vercel/
-frontend/.env.local
-frontend/.env.*.local
-frontend/npm-debug.log*
-frontend/yarn-debug.log*
-frontend/yarn-error.log*
-frontend/.pnp
-frontend/.pnp.js
+# Turborepo
+.turbo/
+
+# Build outputs
+dist/
+build/
+out/
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Backend (Java/Maven) — apps/backend
+apps/backend/target/
+apps/backend/.classpath
+apps/backend/.project
+apps/backend/.settings/
+apps/backend/*.iml
+apps/backend/.idea/
+apps/backend/bin/
+apps/backend/out/
+apps/backend/*.log
+apps/backend/dependency-reduced-pom.xml
+apps/backend/storage/
+
+# Frontend (Next.js) — apps/web
+apps/web/.next/
+apps/web/dist/
+apps/web/build/
+apps/web/.vercel/
+apps/web/.env.local
+apps/web/.env.*.local
+apps/web/npm-debug.log*
+apps/web/yarn-debug.log*
+apps/web/yarn-error.log*
+apps/web/pnpm-debug.log*
+apps/web/.pnp
+apps/web/.pnp.js
 
 # IDE and Editor
 .vscode/
@@ -31,10 +48,6 @@ frontend/.pnp.js
 *.swo
 *.swn
 *~
-.DS_Store
-Thumbs.db
-*.sublime-project
-*.sublime-workspace
 .project
 .classpath
 *.iml
@@ -53,7 +66,7 @@ Thumbs.db
 .docker/
 .dockerignore
 
-# Development
+# Environment
 .env
 .env.local
 *.pem
@@ -64,7 +77,3 @@ Thumbs.db
 *.bak
 .tmp/
 temp/
-
-# Turbo and Build
-.turbo/
-dist/
