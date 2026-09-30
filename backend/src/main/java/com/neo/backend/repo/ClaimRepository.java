@@ -11,4 +11,6 @@ public interface ClaimRepository extends JpaRepository<Claim, String> {
     List<Claim> findAllByOrderByCreatedOnDesc();
 
     List<Claim> findByWorkflowInstanceIdIsNotNull();
+
+    List<Claim> findByCreatedByOrderByCreatedOnDesc(String createdBy);
 }

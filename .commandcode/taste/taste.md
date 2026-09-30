@@ -10,3 +10,4 @@
 - Prefers moving promptly from planning to implementation; don't linger in plan mode — once a plan is formed, start making the changes. Confidence: 0.6
 - Prefers tightly-scoped changes: when they report a specific bug/issue, fix that alone rather than expanding into a broader multi-part plan or unrelated cleanup. Confidence: 0.8
  to fix only the named thing "for now" and not create/work on additional things). Confidence: 0.9
+- Expects every view (per-role dashboards, task/approval lists, activity logs) to stay in sync automatically and show real, current data — no stale values, hardcoded placeholders, or manual reloads needed. Confidence: 0.75

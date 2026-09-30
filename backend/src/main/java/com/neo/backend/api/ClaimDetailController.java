@@ -1,12 +1,14 @@
 package com.neo.backend.api;
 
-import com.neo.backend.domain.ActivityLog;
 import com.neo.backend.domain.Document;
 import com.neo.backend.domain.Note;
 import com.neo.backend.repo.DocumentRepository;
 import com.neo.backend.repo.NoteRepository;
 import com.neo.backend.service.ActivityService;
 import com.neo.backend.service.ClaimService;
+import com.neo.backend.service.TaskAppService;
+import com.neo.backend.workflow.dto.ClaimDecisionView;
+import com.neo.backend.workflow.dto.ClaimTaskView;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.MediaType;
@@ -28,19 +30,37 @@ public class ClaimDetailController {
     private final NoteRepository notes;
     private final DocumentRepository documents;
     private final ActivityService activity;
+    private final TaskAppService tasks;
 
     public ClaimDetailController(
-            ClaimService claims, NoteRepository notes, DocumentRepository documents, ActivityService activity) {
+            ClaimService claims,
+            NoteRepository notes,
+            DocumentRepository documents,
+            ActivityService activity,
+            TaskAppService tasks) {
         this.claims = claims;
         this.notes = notes;
         this.documents = documents;
         this.activity = activity;
+        this.tasks = tasks;
     }
 
     @GetMapping("/audit")
-    public List<ActivityLog> audit(@PathVariable String lineId) {
+    public List<ActivityService.ActivityView> audit(@PathVariable String lineId) {
         claims.get(lineId);
-        return activity.forEntity(lineId);
+        return activity.forEntityWithActor(lineId);
+    }
+
+    @GetMapping("/tasks")
+    public List<ClaimTaskView> tasks(@PathVariable String lineId) {
+        claims.get(lineId);
+        return tasks.claimTasks(lineId);
+    }
+
+    @GetMapping("/decisions")
+    public List<ClaimDecisionView> decisions(@PathVariable String lineId) {
+        claims.get(lineId);
+        return tasks.claimDecisions(lineId);
     }
 
     @GetMapping("/notes")

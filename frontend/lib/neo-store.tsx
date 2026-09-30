@@ -13,21 +13,32 @@ import { backendPath } from "@/lib/constants"
 import type { ClaimRow } from "@/lib/neo-data"
 import { claims as seedClaims } from "@/lib/neo-data"
 
-export type TaskRow = {
-  id?: string
-  name: string
+export type PendingApprovalItem = {
+  taskId: string
+  taskName: string
+  taskKey: string
+  requestId: string | null
+  requestType: string
+  description: string | null
+  vendorName: string | null
+  value: string | null
+  raisedById: string | null
+  raisedByName: string | null
+  createdOn: string | null
+  canAct: boolean
+  candidateGroups: string[]
+}
+
+export type ApprovalDecisionRow = {
+  taskId: string
   requestId: string
-  claimId: string
-  status: string
-  sla: string
-  slaOverdue?: boolean
-  context: string
-  comments: string
-  createdOn: string
-  completedBy: string
-  completedOn: string
-  taskKey?: string
-  candidateGroups?: string[]
+  requestType: string
+  taskName: string
+  decision: string
+  comment: string | null
+  actorId: string | null
+  actorName: string | null
+  decidedOn: string | null
 }
 
 export type ApprovalRow = {
@@ -135,16 +146,6 @@ type BackendClaim = {
   pmName?: string
 }
 
-type BackendTask = {
-  taskId: string
-  name?: string
-  taskDefinitionKey?: string
-  businessKey?: string
-  assignee?: string | null
-  candidateGroups?: string[]
-  createdTime?: string
-}
-
 type BackendApproval = {
   id: string
   requestType?: string
@@ -225,30 +226,6 @@ function toClaimRow(c: BackendClaim): ClaimRow {
   }
 }
 
-function toTaskRow(t: BackendTask): TaskRow {
-  const key = t.taskDefinitionKey ?? ""
-  return {
-    id: t.taskId,
-    name: t.name ?? key,
-    requestId: t.businessKey ?? "",
-    claimId: t.businessKey ?? "",
-    status: "Open",
-    sla: "",
-    context:
-      key.includes("finance") || key.includes("doa")
-        ? "Finance approval"
-        : key.includes("clearing")
-          ? "Clearing review"
-          : "Manager approval",
-    comments: t.assignee ? `Assigned to ${t.assignee}` : "Awaiting action",
-    createdOn: fmtDateTime(t.createdTime),
-    completedBy: "",
-    completedOn: "",
-    taskKey: key,
-    candidateGroups: t.candidateGroups ?? [],
-  }
-}
-
 function toApprovalRow(a: BackendApproval): ApprovalRow {
   return {
     id: a.id,
@@ -279,7 +256,9 @@ type Store = {
   claims: ClaimRow[]
   addClaim: (c: ClaimRow) => void
   nextLineId: () => string
-  tasks: TaskRow[]
+  pendingApprovals: PendingApprovalItem[]
+  myApprovals: ApprovalDecisionRow[]
+  version: number
   approvals: ApprovalRow[]
   addApproval: (a: ApprovalRow) => void
   notifications: NotificationItem[]
@@ -298,8 +277,10 @@ const Ctx = createContext<Store | null>(null)
 export function NeoStoreProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const [backendClaims, setBackendClaims] = useState<ClaimRow[]>([])
-  const [backendTasks, setBackendTasks] = useState<TaskRow[]>([])
+  const [pendingApprovals, setPendingApprovals] = useState<PendingApprovalItem[]>([])
+  const [myApprovals, setMyApprovals] = useState<ApprovalDecisionRow[]>([])
   const [backendApprovals, setBackendApprovals] = useState<ApprovalRow[]>([])
+  const [version, setVersion] = useState(0)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [extra, setExtra] = useState<ClaimRow[]>([])
   const [extraApprovals, setExtraApprovals] = useState<ApprovalRow[]>([])
@@ -311,10 +292,11 @@ export function NeoStoreProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false
     const load = async () => {
       try {
-        const [claimsRes, tasksRes, approvalsRes, notificationsRes] =
+        const [claimsRes, pendingRes, decidedRes, approvalsRes, notificationsRes] =
           await Promise.all([
             fetch(backendPath("/claims")),
-            fetch(backendPath("/tasks")),
+            fetch(backendPath("/approvals/pending")),
+            fetch(backendPath("/approvals/decided")),
             fetch(backendPath("/mandates/approvals/view")),
             fetch(backendPath("/notifications")),
           ])
@@ -326,9 +308,13 @@ export function NeoStoreProvider({ children }: { children: React.ReactNode }) {
           const rows = (await claimsRes.json()) as BackendClaim[]
           if (!cancelled) setBackendClaims(rows.map(toClaimRow))
         }
-        if (tasksRes.ok) {
-          const rows = (await tasksRes.json()) as BackendTask[]
-          if (!cancelled) setBackendTasks(rows.map(toTaskRow))
+        if (pendingRes.ok) {
+          const rows = (await pendingRes.json()) as PendingApprovalItem[]
+          if (!cancelled) setPendingApprovals(rows ?? [])
+        }
+        if (decidedRes.ok) {
+          const rows = (await decidedRes.json()) as ApprovalDecisionRow[]
+          if (!cancelled) setMyApprovals(rows ?? [])
         }
         if (approvalsRes.ok) {
           const rows = (await approvalsRes.json()) as BackendApproval[]
@@ -340,6 +326,7 @@ export function NeoStoreProvider({ children }: { children: React.ReactNode }) {
           }
           if (!cancelled) setNotifications(body.items ?? [])
         }
+        if (!cancelled) setVersion((v) => v + 1)
       } catch {
         /* backend unavailable: seed fallback stays */
       }
@@ -386,7 +373,9 @@ export function NeoStoreProvider({ children }: { children: React.ReactNode }) {
         const max = Math.max(0, ...nums.filter((n) => Number.isFinite(n)))
         return `MCI-${String(max + 1).padStart(5, "0")}`
       },
-      tasks: backendTasks,
+      pendingApprovals,
+      myApprovals,
+      version,
       approvals: [...backendApprovals, ...extraApprovals],
       addApproval: (a) => setExtraApprovals((e) => [a, ...e]),
       notifications,
@@ -399,7 +388,9 @@ export function NeoStoreProvider({ children }: { children: React.ReactNode }) {
     extra,
     extraApprovals,
     backendClaims,
-    backendTasks,
+    pendingApprovals,
+    myApprovals,
+    version,
     backendApprovals,
     notifications,
     refresh,

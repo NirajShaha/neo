@@ -4,6 +4,7 @@ import com.neo.backend.workflow.dto.CompleteTaskRequest;
 import com.neo.backend.workflow.dto.HistoryEntry;
 import com.neo.backend.workflow.dto.ProcessInstanceResponse;
 import com.neo.backend.workflow.dto.StartProcessRequest;
+import com.neo.backend.workflow.dto.TaskHistoryItem;
 import com.neo.backend.workflow.dto.TaskResponse;
 import java.util.HashMap;
 import java.util.List;
@@ -116,6 +117,24 @@ public class WorkflowFacade {
                         activity.getActivityType(),
                         activity.getStartTime() == null ? null : activity.getStartTime().toInstant(),
                         activity.getEndTime() == null ? null : activity.getEndTime().toInstant()))
+                .collect(Collectors.toList());
+    }
+
+    public List<TaskHistoryItem> listTaskHistory(String processInstanceId) {
+        return historyService.createHistoricTaskInstanceQuery()
+                .processInstanceId(processInstanceId)
+                .orderByHistoricTaskInstanceStartTime()
+                .asc()
+                .list()
+                .stream()
+                .map(task -> new TaskHistoryItem(
+                        task.getId(),
+                        task.getName(),
+                        task.getTaskDefinitionKey(),
+                        task.getAssignee(),
+                        task.getCreateTime() == null ? null : task.getCreateTime().toInstant(),
+                        task.getEndTime() == null ? null : task.getEndTime().toInstant(),
+                        task.getEndTime() == null ? "Open" : "Completed"))
                 .collect(Collectors.toList());
     }
 

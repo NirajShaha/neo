@@ -1,11 +1,17 @@
 package com.neo.backend.service;
 
+import com.neo.backend.domain.AppUser;
 import com.neo.backend.domain.Claim;
 import com.neo.backend.domain.MandateRequest;
+import com.neo.backend.domain.TaskDecision;
+import com.neo.backend.repo.AppUserRepository;
 import com.neo.backend.repo.ClaimRepository;
 import com.neo.backend.repo.MandateRequestRepository;
+import com.neo.backend.repo.TaskDecisionRepository;
 import com.neo.backend.service.IdentityService.SessionUser;
 import com.neo.backend.workflow.WorkflowFacade;
+import com.neo.backend.workflow.dto.ClaimDecisionView;
+import com.neo.backend.workflow.dto.ClaimTaskView;
 import com.neo.backend.workflow.dto.CompleteTaskRequest;
 import com.neo.backend.workflow.dto.ProcessInstanceResponse;
 import com.neo.backend.workflow.dto.TaskResponse;
@@ -13,6 +19,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -24,6 +32,8 @@ public class TaskAppService {
     private final WorkflowFacade workflow;
     private final ClaimRepository claims;
     private final MandateRequestRepository mandates;
+    private final TaskDecisionRepository decisions;
+    private final AppUserRepository users;
     private final ClaimService claimService;
     private final MandateService mandateService;
     private final ActivityService activity;
@@ -32,12 +42,16 @@ public class TaskAppService {
             WorkflowFacade workflow,
             ClaimRepository claims,
             MandateRequestRepository mandates,
+            TaskDecisionRepository decisions,
+            AppUserRepository users,
             ClaimService claimService,
             MandateService mandateService,
             ActivityService activity) {
         this.workflow = workflow;
         this.claims = claims;
         this.mandates = mandates;
+        this.decisions = decisions;
+        this.users = users;
         this.claimService = claimService;
         this.mandateService = mandateService;
         this.activity = activity;
@@ -85,6 +99,17 @@ public class TaskAppService {
                 mandates.save(mandate);
             });
         }
+        if (businessKey != null) {
+            TaskDecision decision = new TaskDecision();
+            decision.setRequestId(businessKey);
+            decision.setTaskId(taskId);
+            decision.setTaskKey(task.taskDefinitionKey());
+            decision.setTaskName(task.name());
+            decision.setDecision(approved ? "APPROVED" : "REJECTED");
+            decision.setComment(input.get("comment") == null ? "" : String.valueOf(input.get("comment")));
+            decision.setActorId(user.id());
+            decisions.save(decision);
+        }
         activity.record(
                 approved ? "TASK_APPROVED" : "TASK_REJECTED",
                 task.name(),
@@ -93,6 +118,50 @@ public class TaskAppService {
                 user.id(),
                 "{}");
         return instance;
+    }
+
+    /** Every workflow task of a claim (open and completed) with the decision taken, if any. */
+    public List<ClaimTaskView> claimTasks(String lineId) {
+        Claim claim = claims.findByLineId(lineId).orElse(null);
+        if (claim == null || claim.getWorkflowInstanceId() == null) {
+            return List.of();
+        }
+        Map<String, TaskDecision> byTask = decisions.findByRequestIdOrderByCreatedOnAsc(lineId).stream()
+                .collect(Collectors.toMap(TaskDecision::getTaskId, Function.identity(), (first, second) -> second));
+        return workflow.listTaskHistory(claim.getWorkflowInstanceId()).stream()
+                .map(item -> new ClaimTaskView(
+                        item.taskId(),
+                        item.name(),
+                        item.taskDefinitionKey(),
+                        item.status(),
+                        item.assignee(),
+                        userName(item.assignee()),
+                        byTask.containsKey(item.taskId()) ? byTask.get(item.taskId()).getDecision() : null,
+                        item.createdOn(),
+                        item.completedOn()))
+                .toList();
+    }
+
+    /** The approval decisions recorded against a claim, oldest first. */
+    public List<ClaimDecisionView> claimDecisions(String lineId) {
+        return decisions.findByRequestIdOrderByCreatedOnAsc(lineId).stream()
+                .map(decision -> new ClaimDecisionView(
+                        decision.getTaskId(),
+                        decision.getTaskKey(),
+                        decision.getTaskName(),
+                        decision.getDecision(),
+                        decision.getComment(),
+                        decision.getActorId(),
+                        userName(decision.getActorId()),
+                        decision.getCreatedOn()))
+                .toList();
+    }
+
+    private String userName(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return null;
+        }
+        return users.findById(userId).map(AppUser::getName).orElse(null);
     }
 
     public TaskResponse claim(SessionUser user, String taskId) {

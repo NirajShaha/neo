@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/table"
 import { NeoHeader } from "@/components/neo/neo-header"
 import { useNeoStore } from "@/lib/neo-store"
+import { cn } from "@/lib/utils"
 
 function MiniSelect({
   label,
@@ -47,35 +48,59 @@ function MiniSelect({
           {options.map((o) => (
             <SelectItem key={o} value={o}>
               {o}
-          </SelectItem>
-        ))}
-      </SelectContent>
+            </SelectItem>
+          ))}
+        </SelectContent>
       </Select>
     </div>
   )
 }
 
+function fmt(value?: string | null): string {
+  if (!value) {
+    return "—"
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+  return date
+    .toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    })
+    .toUpperCase()
+}
+
 export default function TasksPage() {
-  const { tasks, completeTask } = useNeoStore()
+  const { pendingApprovals, completeTask } = useNeoStore()
   const [query, setQuery] = useState("")
-  const [status, setStatus] = useState("Open")
+  const [requestType, setRequestType] = useState("__any")
+  const [scope, setScope] = useState("all")
   const [acting, setActing] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const rows = tasks.filter((t) => {
+  const rows = pendingApprovals.filter((t) => {
+    if (scope === "action" && !t.canAct) return false
+    if (scope === "awaiting" && t.canAct) return false
+    if (requestType !== "__any" && t.requestType !== requestType) return false
     if (query) {
       const q = query.toLowerCase()
-      if (
-        !`${t.name} ${t.requestId} ${t.context}`.toLowerCase().includes(q)
-      )
-        return false
+      const haystack = `${t.taskName} ${t.requestId ?? ""} ${t.description ?? ""} ${
+        t.raisedByName ?? ""
+      }`
+      if (!haystack.toLowerCase().includes(q)) return false
     }
-    if (status !== "__any" && t.status !== status) return false
     return true
   })
 
-  const decide = async (taskId: string | undefined, decision: "APPROVED" | "REJECTED") => {
-    if (!taskId) return
+  const decide = async (
+    taskId: string,
+    decision: "APPROVED" | "REJECTED"
+  ) => {
     setActing(taskId)
     setError(null)
     try {
@@ -121,56 +146,39 @@ export default function TasksPage() {
                 SEARCH
               </Button>
             </form>
-            <div className="flex items-center gap-1 text-[11px]">
-              <span className="font-semibold whitespace-nowrap text-neutral-500 uppercase">
-                REF TASK STATUS |
-              </span>
-              <div className="flex flex-1 items-center">
-                <MiniSelect
-                  label=""
-                  value={status}
-                  onChange={(v) => setStatus(v ?? "__any")}
-                  options={["Open", "Completed"]}
-                />
-              </div>
-              <span className="ml-1 inline-block size-2.5 rounded-full bg-emerald-700" />
-            </div>
             <MiniSelect
-              label="COMPLETED ON |"
-              value="__any"
-              onChange={() => {}}
-              options={["16 APR 2024 10:01 PM"]}
+              label="SHOW |"
+              value={scope}
+              onChange={(v) => setScope(v ?? "all")}
+              options={["Action required", "Awaiting others"]}
             />
-            <div className="flex items-center gap-1">
-              <div className="flex flex-1 items-center">
-                <MiniSelect
-                  label="CREATED ON |"
-                  value="__any"
-                  onChange={() => {}}
-                  options={["16 APR 2024 10:01 PM"]}
-                />
-              </div>
-              <div className="ml-auto flex items-center gap-1">
-                <Button size="icon-sm" variant="outline" className="size-7" type="button" title="Export">
-                  <Download className="size-3.5" />
-                </Button>
-                <Button size="icon-sm" variant="outline" className="size-7" type="button" title="Column chooser">
-                  <ListFilter className="size-3.5" />
-                </Button>
-                <Button
-                  size="icon-sm"
-                  variant="outline"
-                  className="size-7"
-                  type="button"
-                  title="Reset"
-                  onClick={() => {
-                    setQuery("")
-                    setStatus("Open")
-                  }}
-                >
-                  <RotateCcw className="size-3.5" />
-                </Button>
-              </div>
+            <MiniSelect
+              label="REQUEST TYPE |"
+              value={requestType}
+              onChange={(v) => setRequestType(v ?? "__any")}
+              options={["Claim", "Mandate"]}
+            />
+            <div className="flex items-center justify-end gap-1">
+              <Button size="icon-sm" variant="outline" className="size-7" type="button" title="Export">
+                <Download className="size-3.5" />
+              </Button>
+              <Button size="icon-sm" variant="outline" className="size-7" type="button" title="Column chooser">
+                <ListFilter className="size-3.5" />
+              </Button>
+              <Button
+                size="icon-sm"
+                variant="outline"
+                className="size-7"
+                type="button"
+                title="Reset"
+                onClick={() => {
+                  setQuery("")
+                  setRequestType("__any")
+                  setScope("all")
+                }}
+              >
+                <RotateCcw className="size-3.5" />
+              </Button>
             </div>
           </div>
         </div>
@@ -180,29 +188,21 @@ export default function TasksPage() {
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 {[
-                  "Name",
+                  "Task",
                   "Request ID",
-                  "Claim ID",
-                  "Status",
-                  "SLA",
-                  "Context",
-                  "Comments",
+                  "Request Type",
+                  "Description",
+                  "Vendor",
+                  "Raised By",
                   "Created On",
-                  "Completed By",
-                  "Completed On",
+                  "Status",
                   "Actions",
                 ].map((h) => (
                   <TableHead
                     key={h}
                     className="px-2 py-2 text-[11px] font-semibold whitespace-nowrap text-neutral-600"
                   >
-                    {h === "SLA" ? (
-                      <span className="inline-flex items-center gap-1">
-                        SLA <span className="text-neutral-400">↑</span>
-                      </span>
-                    ) : (
-                      h
-                    )}
+                    {h}
                   </TableHead>
                 ))}
               </TableRow>
@@ -210,47 +210,50 @@ export default function TasksPage() {
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={11} className="py-8 text-center text-xs text-neutral-500">
-                    No tasks match the current filters.
+                  <TableCell colSpan={9} className="py-8 text-center text-xs text-neutral-500">
+                    Nothing is waiting for a decision right now.
                   </TableCell>
                 </TableRow>
               ) : (
                 rows.map((t) => (
-                  <TableRow key={t.id ?? t.requestId} className="align-top">
+                  <TableRow key={t.taskId} className="align-top">
                     <TableCell className="max-w-64 px-2 py-2.5 whitespace-normal font-medium text-emerald-800">
-                      {t.name}
+                      {t.taskName}
                     </TableCell>
-                    <TableCell className="px-2 py-2.5">{t.requestId}</TableCell>
-                    <TableCell className="px-2 py-2.5">{t.claimId}</TableCell>
-                    <TableCell className="px-2 py-2.5">{t.status}</TableCell>
-                    <TableCell className="px-2 py-2.5">
-                      {t.slaOverdue ? (
-                        <span className="bg-red-600 px-1.5 py-0.5 text-[11px] font-bold text-white">
-                          {t.sla}
-                        </span>
-                      ) : (
-                        t.sla
-                      )}
+                    <TableCell className="px-2 py-2.5">{t.requestId ?? "—"}</TableCell>
+                    <TableCell className="px-2 py-2.5">{t.requestType}</TableCell>
+                    <TableCell className="max-w-72 px-2 py-2.5 whitespace-normal text-neutral-600">
+                      {t.description ?? "—"}
                     </TableCell>
-                    <TableCell className="px-2 py-2.5">{t.context}</TableCell>
+                    <TableCell className="px-2 py-2.5 uppercase">
+                      {t.vendorName ?? "—"}
+                    </TableCell>
                     <TableCell className="px-2 py-2.5">
-                      <button type="button" className="text-emerald-700 hover:underline">
-                        {t.comments}
-                      </button>
+                      {t.raisedByName ?? "—"}
                     </TableCell>
                     <TableCell className="px-2 py-2.5 whitespace-nowrap">
-                      {t.createdOn}
+                      {fmt(t.createdOn)}
                     </TableCell>
-                    <TableCell className="px-2 py-2.5">{t.completedBy}</TableCell>
-                    <TableCell className="px-2 py-2.5">{t.completedOn}</TableCell>
                     <TableCell className="px-2 py-2.5 whitespace-nowrap">
-                      {t.id ? (
+                      <span
+                        className={cn(
+                          "rounded px-1.5 py-0.5 text-[11px] font-bold",
+                          t.canAct
+                            ? "bg-amber-100 text-amber-900"
+                            : "bg-neutral-100 text-neutral-600"
+                        )}
+                      >
+                        {t.canAct ? "ACTION REQUIRED" : "AWAITING APPROVAL"}
+                      </span>
+                    </TableCell>
+                    <TableCell className="px-2 py-2.5 whitespace-nowrap">
+                      {t.canAct ? (
                         <span className="flex gap-1">
                           <Button
                             size="sm"
                             className="h-6 bg-emerald-800 px-2 text-[11px] font-bold text-white hover:bg-emerald-700"
-                            disabled={acting === t.id}
-                            onClick={() => decide(t.id, "APPROVED")}
+                            disabled={acting === t.taskId}
+                            onClick={() => decide(t.taskId, "APPROVED")}
                           >
                             APPROVE
                           </Button>
@@ -258,8 +261,8 @@ export default function TasksPage() {
                             size="sm"
                             variant="outline"
                             className="h-6 border-red-200 px-2 text-[11px] font-bold text-red-600 hover:bg-red-50"
-                            disabled={acting === t.id}
-                            onClick={() => decide(t.id, "REJECTED")}
+                            disabled={acting === t.taskId}
+                            onClick={() => decide(t.taskId, "REJECTED")}
                           >
                             REJECT
                           </Button>

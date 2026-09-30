@@ -10,6 +10,7 @@ import {
   UserCheck,
 } from "lucide-react"
 import { useNeoStore } from "@/lib/neo-store"
+import { useNeoSession } from "@/components/neo/session-provider"
 
 const kpiDefs = [
   { key: "open", label: "OPEN" },
@@ -30,14 +31,22 @@ const kpiIcons: Record<string, typeof CircleDot> = {
 }
 
 export function NeoHero() {
-  const { claims, approvals } = useNeoStore()
+  const { claims, pendingApprovals, myApprovals } = useNeoStore()
+  const session = useNeoSession()
+  const awaiting = claims.filter(
+    (c) => c.status === "Awaiting Manager" || c.status === "Awaiting Finance"
+  ).length
   const values: Record<string, string> = {
-    open: String(claims.filter((c) => !c.status || c.status === "Open").length),
-    draft: "0",
-    awaiting: "0",
+    open: String(
+      claims.filter(
+        (c) => !c.status || c.status === "Forecast" || c.status === "Awaiting Manager" || c.status === "Awaiting Finance"
+      ).length
+    ),
+    draft: String(claims.filter((c) => c.status === "Draft").length),
+    awaiting: String(awaiting),
     completed: String(claims.filter((c) => c.status === "Completed").length),
-    pending: String(approvals.length),
-    mine: "60",
+    pending: String(pendingApprovals.length),
+    mine: String(myApprovals.length),
   }
 
   return (
@@ -71,7 +80,7 @@ export function NeoHero() {
         </div>
 
         <p className="absolute right-6 bottom-3 text-xs text-neutral-300">
-          Hello, Buyer Officer
+          Hello, {session?.name ?? "there"}
         </p>
       </div>
 
