@@ -11,4 +11,6 @@ public interface MandateRequestRepository extends JpaRepository<MandateRequest, 
     List<MandateRequest> findAllByOrderByCreatedOnDesc();
 
     List<MandateRequest> findByWorkflowInstanceIdIsNotNull();
+
+    List<MandateRequest> findByCreatedByOrderByCreatedOnDesc(String createdBy);
 }

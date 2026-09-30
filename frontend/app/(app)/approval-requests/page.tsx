@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { useState } from "react"
 import { Download, ListFilter, RotateCcw, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -57,42 +56,81 @@ function MiniSelect({
   )
 }
 
-const initialApprovals = {
-  query: "",
-  requestType: "__any",
-  category: "__any",
-  doa: "__any",
-  clearing: "__any",
-  coc: "__any",
-  vendor: "__any",
+function fmt(value?: string | null): string {
+  if (!value) {
+    return "—"
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+  return date
+    .toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    })
+    .toUpperCase()
 }
 
-export default function ApprovalRequestsPage() {
-  const { approvals } = useNeoStore()
-  const [f, setF] = useState(initialApprovals)
-  const set = (k: keyof typeof initialApprovals) => (v: string | null) =>
-    setF((p) => ({ ...p, [k]: v ?? "__any" }))
+const initialFilters = { query: "", requestType: "__any", decision: "__any" }
 
-  const rows = approvals.filter((a) => {
-    const any = (v: string) => v === "__any" || v === ""
-    if (f.query) {
-      const q = f.query.toLowerCase()
-      if (
-        !`${a.id} ${a.requestType} ${a.category} ${a.vendorName} ${a.raiser}`.toLowerCase().includes(q)
-      )
-        return false
-    }
-    if (!any(f.requestType) && a.requestType !== f.requestType) return false
-    if (!any(f.category) && a.category !== f.category) return false
-    if (!any(f.doa) && a.doa !== f.doa) return false
-    return true
+export default function ApprovalRequestsPage() {
+  const { pendingApprovals, myApprovals, completeTask } = useNeoStore()
+  const [view, setView] = useState<"pending" | "mine">("pending")
+  const [f, setF] = useState(initialFilters)
+  const [acting, setActing] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const matchesSearch = (text: string) =>
+    !f.query || text.toLowerCase().includes(f.query.toLowerCase())
+
+  const pendingRows = pendingApprovals.filter((a) => {
+    if (f.requestType !== "__any" && a.requestType !== f.requestType) return false
+    return matchesSearch(
+      `${a.requestId ?? ""} ${a.requestType} ${a.description ?? ""} ${
+        a.vendorName ?? ""
+      } ${a.raisedByName ?? ""} ${a.taskName}`
+    )
   })
+
+  const decidedRows = myApprovals.filter((a) => {
+    if (f.requestType !== "__any" && a.requestType !== f.requestType) return false
+    if (f.decision !== "__any" && a.decision !== f.decision) return false
+    return matchesSearch(
+      `${a.requestId} ${a.requestType} ${a.taskName} ${a.actorName ?? ""} ${
+        a.comment ?? ""
+      }`
+    )
+  })
+
+  const decide = async (
+    taskId: string,
+    decision: "APPROVED" | "REJECTED"
+  ) => {
+    setActing(taskId)
+    setError(null)
+    try {
+      await completeTask(taskId, decision)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to complete approval")
+    } finally {
+      setActing(null)
+    }
+  }
 
   return (
     <div className="flex min-h-svh flex-col bg-neutral-100">
       <NeoHeader active="approval" />
 
       <main className="flex-1 space-y-0 px-6 py-3">
+        {error && (
+          <p className="mb-2 rounded bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+            {error}
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <Button className="h-8 flex-1 bg-emerald-800 text-[11px] font-bold text-white hover:bg-emerald-700">
             ⟳ CREATE AD-HOC APPROVAL REQUEST
@@ -102,18 +140,31 @@ export default function ApprovalRequestsPage() {
           </Button>
           <div className="ml-auto flex gap-2">
             <Button
-              variant="outline"
+              variant={view === "pending" ? "default" : "outline"}
               size="sm"
-              className="h-8 border-emerald-700 text-[11px] font-bold text-emerald-700"
+              onClick={() => setView("pending")}
+              className={cn(
+                "h-8 text-[11px] font-bold",
+                view === "pending"
+                  ? "bg-emerald-800 text-white hover:bg-emerald-700"
+                  : "border-emerald-700 text-emerald-700"
+              )}
             >
-              PENDING APPROVALS
+              PENDING APPROVALS ({pendingApprovals.length})
             </Button>
-            <Link
-              href="/approval-requests"
-              className="inline-flex h-8 items-center rounded-lg border border-emerald-700 px-2.5 text-[11px] font-bold text-emerald-700"
+            <Button
+              variant={view === "mine" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setView("mine")}
+              className={cn(
+                "h-8 text-[11px] font-bold",
+                view === "mine"
+                  ? "bg-emerald-800 text-white hover:bg-emerald-700"
+                  : "border-emerald-700 text-emerald-700"
+              )}
             >
-              MY APPROVALS
-            </Link>
+              MY APPROVALS ({myApprovals.length})
+            </Button>
           </div>
         </div>
 
@@ -144,167 +195,194 @@ export default function ApprovalRequestsPage() {
             <MiniSelect
               label="REQUEST TYPE |"
               value={f.requestType}
-              onChange={set("requestType")}
-              options={["Mandate", "Settlement"]}
+              onChange={(v) => setF({ ...f, requestType: v ?? "__any" })}
+              options={["Claim", "Mandate"]}
             />
-            <MiniSelect
-              label="REQUEST CATEGORY |"
-              value={f.category}
-              onChange={set("category")}
-              options={["Prompt Payment", "Inflation"]}
-            />
-            <div className="flex items-center gap-1">
-              <div className="flex-1">
-                <MiniSelect
-                  label="DOA APPROVAL STATUS |"
-                  value={f.doa}
-                  onChange={set("doa")}
-                  options={["Submitted", "Complete", "Draft"]}
-                />
-              </div>
-              <div className="ml-auto flex items-center gap-1">
-                <Button size="icon-sm" variant="outline" className="size-7" type="button" title="Export">
-                  <Download className="size-3.5" />
-                </Button>
-                <Button size="icon-sm" variant="outline" className="size-7" type="button" title="Column chooser">
-                  <ListFilter className="size-3.5" />
-                </Button>
-                <Button
-                  size="icon-sm"
-                  variant="outline"
-                  className="size-7"
-                  type="button"
-                  title="Reset"
-                  onClick={() => setF(initialApprovals)}
-                >
-                  <RotateCcw className="size-3.5" />
-                </Button>
-              </div>
+            {view === "mine" && (
+              <MiniSelect
+                label="DECISION |"
+                value={f.decision}
+                onChange={(v) => setF({ ...f, decision: v ?? "__any" })}
+                options={["APPROVED", "REJECTED"]}
+              />
+            )}
+            <div className="flex items-center justify-end gap-1">
+              <Button size="icon-sm" variant="outline" className="size-7" type="button" title="Export">
+                <Download className="size-3.5" />
+              </Button>
+              <Button size="icon-sm" variant="outline" className="size-7" type="button" title="Column chooser">
+                <ListFilter className="size-3.5" />
+              </Button>
+              <Button
+                size="icon-sm"
+                variant="outline"
+                className="size-7"
+                type="button"
+                title="Reset"
+                onClick={() => setF(initialFilters)}
+              >
+                <RotateCcw className="size-3.5" />
+              </Button>
             </div>
-            <MiniSelect
-              label="CLEARING HOUSE STATUS |"
-              value={f.clearing}
-              onChange={set("clearing")}
-              options={["Awaiting More Information"]}
-            />
-            <MiniSelect
-              label="COC |"
-              value={f.coc}
-              onChange={set("coc")}
-              options={["ZZ COC Test"]}
-            />
-            <MiniSelect
-              label="AGENDA DATE |"
-              value="__any"
-              onChange={() => {}}
-              options={[]}
-            />
-            <MiniSelect
-              label="VENDOR CODE |"
-              value={f.vendor}
-              onChange={set("vendor")}
-              options={["GJFTA"]}
-            />
           </div>
         </div>
 
         <div className="overflow-x-auto border border-t-0 border-neutral-200 bg-white">
-          <Table className="min-w-[1700px] text-xs">
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                {[
-                  "ID",
-                  "Request Type",
-                  "Category",
-                  "Level of Forum Required",
-                  "Overall Status",
-                  "Clearing House Status",
-                  "DOA Approval Status",
-                  "Value Including VAT (£)",
-                  "Initial Request Total Value",
-                  "Total Value (Risks)",
-                  "Total Value (Opportunities)",
-                  "Vendor Code",
-                  "Vendor Name",
-                  "CoC",
-                  "Raiser CDSID",
-                  "Other stakeholders",
-                  "Days Pending Approval",
-                  "Open Enquiries?",
-                  "Action Outside SLA?",
-                  "Age Dat",
-                ].map((h, i) => (
-                  <TableHead
-                    key={h}
-                    className="px-2 py-2 text-[11px] font-semibold whitespace-nowrap text-neutral-600"
-                  >
-                    {i === 0 ? (
-                      <span className="inline-flex items-center gap-1">
-                        {h} <span className="text-emerald-700">↓</span>
-                      </span>
-                    ) : (
-                      h
-                    )}
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.length === 0 ? (
+          {view === "pending" ? (
+            <Table className="min-w-[1300px] text-xs">
+              <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={20} className="py-8 text-center text-xs text-neutral-500">
-                    No requests match the current filters.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                rows.map((a) => (
-                  <TableRow key={a.id} className="align-top">
-                    <TableCell className="px-2 py-2.5 font-bold text-emerald-800">
-                      {a.id}
-                    </TableCell>
-                    <TableCell className="px-2 py-2.5">{a.requestType}</TableCell>
-                    <TableCell className="px-2 py-2.5">{a.category}</TableCell>
-                    <TableCell className="px-2 py-2.5 whitespace-normal">
-                      {a.level}
-                    </TableCell>
-                    <TableCell className="px-2 py-2.5 whitespace-normal">
-                      {a.overall}
-                    </TableCell>
-                    <TableCell className="px-2 py-2.5 whitespace-normal">
-                      {a.clearing}
-                    </TableCell>
-                    <TableCell className="px-2 py-2.5">{a.doa}</TableCell>
-                    <TableCell className="px-2 py-2.5">{a.valueVat}</TableCell>
-                    <TableCell className="px-2 py-2.5">{a.initialTotal}</TableCell>
-                    <TableCell
-                      className={cn(
-                        "px-2 py-2.5 whitespace-nowrap",
-                        a.risksNegative && "text-red-500"
-                      )}
+                  {[
+                    "Request ID",
+                    "Request Type",
+                    "Description",
+                    "Vendor",
+                    "Value (£)",
+                    "Raised By",
+                    "Received",
+                    "Approval Step",
+                    "Action",
+                  ].map((h) => (
+                    <TableHead
+                      key={h}
+                      className="px-2 py-2 text-[11px] font-semibold whitespace-nowrap text-neutral-600"
                     >
-                      {a.risks}
-                    </TableCell>
-                    <TableCell className="px-2 py-2.5">{a.opportunities}</TableCell>
-                    <TableCell className="px-2 py-2.5">{a.vendorCode}</TableCell>
-                    <TableCell className="px-2 py-2.5 uppercase">
-                      {a.vendorName}
-                    </TableCell>
-                    <TableCell className="px-2 py-2.5 whitespace-normal">
-                      {a.coc}
-                    </TableCell>
-                    <TableCell className="px-2 py-2.5">{a.raiser}</TableCell>
-                    <TableCell className="px-2 py-2.5">{a.stakeholders}</TableCell>
-                    <TableCell className="px-2 py-2.5">{a.daysPending}</TableCell>
-                    <TableCell className="px-2 py-2.5">{a.openEnquiries}</TableCell>
-                    <TableCell className="px-2 py-2.5">{a.actionOutside}</TableCell>
-                    <TableCell className="px-2 py-2.5 whitespace-nowrap">
-                      {a.ageDate}
+                      {h}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pendingRows.length === 0 ? (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={9} className="py-8 text-center text-xs text-neutral-500">
+                      No approvals are waiting right now.
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  pendingRows.map((a) => (
+                    <TableRow key={a.taskId} className="align-top">
+                      <TableCell className="px-2 py-2.5 font-bold text-emerald-800">
+                        {a.requestId ?? "—"}
+                      </TableCell>
+                      <TableCell className="px-2 py-2.5">{a.requestType}</TableCell>
+                      <TableCell className="max-w-72 px-2 py-2.5 whitespace-normal text-neutral-600">
+                        {a.description ?? "—"}
+                      </TableCell>
+                      <TableCell className="px-2 py-2.5 uppercase">
+                        {a.vendorName ?? "—"}
+                      </TableCell>
+                      <TableCell className="px-2 py-2.5">{a.value ?? "—"}</TableCell>
+                      <TableCell className="px-2 py-2.5">
+                        {a.raisedByName ?? "—"}
+                      </TableCell>
+                      <TableCell className="px-2 py-2.5 whitespace-nowrap">
+                        {fmt(a.createdOn)}
+                      </TableCell>
+                      <TableCell className="px-2 py-2.5 whitespace-nowrap">
+                        <span className="flex items-center gap-1.5">
+                          {a.taskName}
+                          {!a.canAct && (
+                            <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-bold text-neutral-600">
+                              WAITING
+                            </span>
+                          )}
+                        </span>
+                      </TableCell>
+                      <TableCell className="px-2 py-2.5 whitespace-nowrap">
+                        {a.canAct ? (
+                          <span className="flex gap-1">
+                            <Button
+                              size="sm"
+                              className="h-6 bg-emerald-800 px-2 text-[11px] font-bold text-white hover:bg-emerald-700"
+                              disabled={acting === a.taskId}
+                              onClick={() => decide(a.taskId, "APPROVED")}
+                            >
+                              APPROVE
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 border-red-200 px-2 text-[11px] font-bold text-red-600 hover:bg-red-50"
+                              disabled={acting === a.taskId}
+                              onClick={() => decide(a.taskId, "REJECTED")}
+                            >
+                              REJECT
+                            </Button>
+                          </span>
+                        ) : (
+                          <span className="text-neutral-400">—</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          ) : (
+            <Table className="min-w-[1100px] text-xs">
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  {[
+                    "Request ID",
+                    "Request Type",
+                    "Approval Step",
+                    "Decision",
+                    "Decided By",
+                    "Decided On",
+                    "Comment",
+                  ].map((h) => (
+                    <TableHead
+                      key={h}
+                      className="px-2 py-2 text-[11px] font-semibold whitespace-nowrap text-neutral-600"
+                    >
+                      {h}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {decidedRows.length === 0 ? (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={7} className="py-8 text-center text-xs text-neutral-500">
+                      No approvals recorded yet.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  decidedRows.map((a) => (
+                    <TableRow key={a.taskId} className="align-top">
+                      <TableCell className="px-2 py-2.5 font-bold text-emerald-800">
+                        {a.requestId}
+                      </TableCell>
+                      <TableCell className="px-2 py-2.5">{a.requestType}</TableCell>
+                      <TableCell className="px-2 py-2.5">{a.taskName}</TableCell>
+                      <TableCell className="px-2 py-2.5">
+                        <span
+                          className={cn(
+                            "rounded px-1.5 py-0.5 text-[11px] font-bold",
+                            a.decision === "APPROVED"
+                              ? "bg-emerald-100 text-emerald-900"
+                              : "bg-red-100 text-red-700"
+                          )}
+                        >
+                          {a.decision}
+                        </span>
+                      </TableCell>
+                      <TableCell className="px-2 py-2.5">
+                        {a.actorName ?? a.actorId ?? "—"}
+                      </TableCell>
+                      <TableCell className="px-2 py-2.5 whitespace-nowrap">
+                        {fmt(a.decidedOn)}
+                      </TableCell>
+                      <TableCell className="max-w-72 px-2 py-2.5 whitespace-normal text-neutral-600">
+                        {a.comment || "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          )}
         </div>
       </main>
     </div>

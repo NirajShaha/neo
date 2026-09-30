@@ -46,6 +46,104 @@ const phases = [
   "Cancelled",
 ]
 
+const activityLabels: Record<string, string> = {
+  CLAIM_CREATED: "Claim created",
+  WORKFLOW_STARTED: "Workflow started",
+  TASK_APPROVED: "Approved",
+  TASK_REJECTED: "Rejected",
+  WORKFLOW_APPROVED: "Claim approved",
+  WORKFLOW_REJECTED: "Claim rejected",
+  EVENT_SUBMITTED: "Submitted",
+  EVENT_MANAGER_APPROVAL_REQUESTED: "Sent to manager for approval",
+  EVENT_MANAGER_REMINDER: "Manager reminded",
+  EVENT_MANAGER_ESCALATION: "Manager escalation",
+  EVENT_FINANCE_APPROVAL_REQUESTED: "Sent to finance for approval",
+  EVENT_FINAL_OUTCOME: "Outcome recorded",
+  BOOKING_CONFIRMED: "Implementation confirmed",
+  NOTE_ADDED: "Note added",
+  ATTACHMENT_ADDED: "Attachment added",
+  RECONCILED: "Workflow state reconciled",
+}
+
+function activityLabel(action: string): string {
+  return activityLabels[action] ?? action.replaceAll("_", " ")
+}
+
+function statusLabel(status: string): string {
+  switch (status) {
+    case "Draft":
+      return "Draft"
+    case "Forecast":
+      return "Submitted"
+    case "Awaiting Manager":
+      return "Awaiting Manager Approval"
+    case "Awaiting Finance":
+      return "Awaiting Finance Approval"
+    case "Completed":
+      return "Approved"
+    case "Rejected":
+      return "Rejected"
+    default:
+      return status || "Draft"
+  }
+}
+
+function phaseReached(status: string, index: number): boolean {
+  const current = (() => {
+    switch (status) {
+      case "Draft":
+        return 0
+      case "Forecast":
+        return 1
+      case "Awaiting Manager":
+      case "Awaiting Finance":
+        return 2
+      case "Completed":
+        return 4
+      case "Rejected":
+        return 5
+      default:
+        return 0
+    }
+  })()
+  if (status === "Rejected") {
+    return index <= 2 || index === 5
+  }
+  return index <= current
+}
+
+function taskState(task: ClaimTaskItem): string {
+  if (task.status === "Open") {
+    return "Open"
+  }
+  if (task.decision === "APPROVED") {
+    return "Approved"
+  }
+  if (task.decision === "REJECTED") {
+    return "Rejected"
+  }
+  return "Completed"
+}
+
+function fmt(value?: string | null): string {
+  if (!value) {
+    return "—"
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+  return date
+    .toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    })
+    .toUpperCase()
+}
+
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <h3 className="mt-4 flex items-center gap-1 text-sm font-bold text-emerald-900">
@@ -73,20 +171,49 @@ type BackendAttachment = {
 type BackendActivity = {
   action: string
   description: string
+  actorId?: string | null
+  actorName?: string | null
   createdOn: string
+}
+
+type ClaimTaskItem = {
+  taskId: string
+  name: string
+  taskKey: string
+  status: string
+  assigneeId?: string | null
+  assigneeName?: string | null
+  decision?: string | null
+  createdOn?: string | null
+  completedOn?: string | null
+}
+
+type ClaimDecisionItem = {
+  taskId: string
+  taskKey: string
+  taskName: string
+  decision: string
+  comment?: string | null
+  actorId?: string | null
+  actorName?: string | null
+  decidedOn?: string | null
 }
 
 export default function ClaimDetailPage() {
   const params = useParams()
   const router = useRouter()
   const lineId = decodeURIComponent(String(params.lineId ?? ""))
-  const { claims, approvals, tasks, refresh } = useNeoStore()
+  const { claims, refresh, version } = useNeoStore()
   const { request } = useApi()
+  const claim = claims.find((c) => c.lineId === lineId)
+  const workflowStatus = claim?.status ?? ""
   const [tab, setTab] = useState<(typeof tabs)[number]>("Summary")
   const [notes, setNotes] = useState<string[]>([])
   const [backendNotes, setBackendNotes] = useState<BackendNote[]>([])
   const [attachments, setAttachments] = useState<BackendAttachment[]>([])
   const [activity, setActivity] = useState<BackendActivity[]>([])
+  const [claimTasks, setClaimTasks] = useState<ClaimTaskItem[]>([])
+  const [claimDecisions, setClaimDecisions] = useState<ClaimDecisionItem[]>([])
   const [file, setFile] = useState<File | null>(null)
   const [fileType, setFileType] = useState("Other")
   const [fileDesc, setFileDesc] = useState("")
@@ -103,15 +230,19 @@ export default function ClaimDetailPage() {
     const encoded = encodeURIComponent(lineId)
     const load = async () => {
       try {
-        const [n, at, a] = await Promise.all([
+        const [n, at, a, t, d] = await Promise.all([
           request<BackendNote[]>(`/api/claims/${encoded}/notes`),
           request<BackendAttachment[]>(`/api/claims/${encoded}/attachments`),
           request<BackendActivity[]>(`/api/claims/${encoded}/audit`),
+          request<ClaimTaskItem[]>(`/api/claims/${encoded}/tasks`),
+          request<ClaimDecisionItem[]>(`/api/claims/${encoded}/decisions`),
         ])
         if (!cancelled) {
           setBackendNotes(n ?? [])
           setAttachments(at ?? [])
           setActivity(a ?? [])
+          setClaimTasks(t ?? [])
+          setClaimDecisions(d ?? [])
         }
       } catch {
         /* backend unavailable: local fallback stays */
@@ -121,9 +252,7 @@ export default function ClaimDetailPage() {
     return () => {
       cancelled = true
     }
-  }, [lineId, request])
-
-  const claim = claims.find((c) => c.lineId === lineId)
+  }, [lineId, request, workflowStatus, version])
   if (!claim) {
     return (
       <div className="flex min-h-svh flex-col bg-neutral-100">
@@ -141,10 +270,14 @@ export default function ClaimDetailPage() {
   }
 
   const label = claim.supplierClaimType || "Risk"
-  const relatedApprovals = approvals.slice(0, 3)
-  const relatedTasks = tasks
-    .filter((t) => t.requestId === lineId || t.claimId === lineId)
-    .slice(0, 3)
+  const financeTask = claimTasks.find((task) => task.taskKey?.includes("finance"))
+  const financeStatus = financeTask
+    ? financeTask.status === "Open"
+      ? "Pending"
+      : financeTask.decision === "REJECTED"
+        ? "Rejected"
+        : "Approved"
+    : "Not Required"
 
   const upload = async () => {
     if (!file) return
@@ -233,7 +366,7 @@ export default function ClaimDetailPage() {
                       <span
                         className={cn(
                           "size-2 rotate-45 border border-emerald-800",
-                          i <= 1 && "bg-emerald-800"
+                          phaseReached(claim.status, i) && "bg-emerald-800"
                         )}
                       />
                       <span className="mt-1 text-[10px] whitespace-nowrap text-neutral-500">
@@ -244,7 +377,10 @@ export default function ClaimDetailPage() {
                       <span
                         className={cn(
                           "mx-1 mb-5 h-0.5 flex-1",
-                          i < 1 ? "bg-emerald-800" : "bg-neutral-200"
+                          phaseReached(claim.status, i) &&
+                            phaseReached(claim.status, i + 1)
+                            ? "bg-emerald-800"
+                            : "bg-neutral-200"
                         )}
                       />
                     )}
@@ -252,22 +388,29 @@ export default function ClaimDetailPage() {
                 ))}
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-x-10">
+              <div className="mt-4 grid grid-cols-3 gap-x-10">
                 <div>
                   <p className="text-[11px] font-bold text-neutral-800">
                     Workflow Status
                   </p>
                   <p className="text-xs text-neutral-500">
-                    {claim.status === "Forecast" ? "Created" : claim.status || "Created"}
+                    {statusLabel(claim.status)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold text-neutral-800">
+                    Current Step
+                  </p>
+                  <p className="text-xs text-neutral-500">
+                    {claimTasks.find((t) => t.status === "Open")?.name ??
+                      "No open task"}
                   </p>
                 </div>
                 <div>
                   <p className="text-[11px] font-bold text-neutral-800">
                     Finance Status
                   </p>
-                  <p className="text-xs text-neutral-500">
-                    {claim.status || "Forecast"}
-                  </p>
+                  <p className="text-xs text-neutral-500">{financeStatus}</p>
                 </div>
               </div>
 
@@ -355,30 +498,43 @@ export default function ClaimDetailPage() {
               <Table className="text-xs">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Request Type</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Overall Status</TableHead>
-                    <TableHead>DOA Approval Status</TableHead>
+                    <TableHead>Approval Step</TableHead>
+                    <TableHead>Decision</TableHead>
+                    <TableHead>Decided By</TableHead>
+                    <TableHead>Decided On</TableHead>
+                    <TableHead>Comment</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {relatedApprovals.length === 0 && (
+                  {claimDecisions.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={5} className="py-4 text-center text-xs text-neutral-500">
-                        No approval requests linked to this claim yet.
+                        No approvals recorded for this claim yet.
                       </TableCell>
                     </TableRow>
                   )}
-                  {relatedApprovals.map((a) => (
-                    <TableRow key={a.id}>
-                      <TableCell className="font-bold text-emerald-800">
-                        {a.id}
+                  {claimDecisions.map((d) => (
+                    <TableRow key={d.taskId}>
+                      <TableCell className="font-semibold">
+                        {d.taskName}
                       </TableCell>
-                      <TableCell>{a.requestType}</TableCell>
-                      <TableCell>{a.category}</TableCell>
-                      <TableCell>{a.overall}</TableCell>
-                      <TableCell>{a.doa}</TableCell>
+                      <TableCell>
+                        <span
+                          className={cn(
+                            "rounded px-1.5 py-0.5 text-[11px] font-bold",
+                            d.decision === "APPROVED"
+                              ? "bg-emerald-100 text-emerald-900"
+                              : "bg-red-100 text-red-700"
+                          )}
+                        >
+                          {d.decision}
+                        </span>
+                      </TableCell>
+                      <TableCell>{d.actorName ?? d.actorId ?? "—"}</TableCell>
+                      <TableCell>{fmt(d.decidedOn)}</TableCell>
+                      <TableCell className="whitespace-normal">
+                        {d.comment || "—"}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -478,26 +634,41 @@ export default function ClaimDetailPage() {
               <Table className="text-xs">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Request ID</TableHead>
+                    <TableHead>Task</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Assignee</TableHead>
                     <TableHead>Created On</TableHead>
+                    <TableHead>Completed On</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {relatedTasks.length === 0 && (
+                  {claimTasks.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={4} className="py-4 text-center text-xs text-neutral-500">
+                      <TableCell colSpan={5} className="py-4 text-center text-xs text-neutral-500">
                         No workflow tasks for this claim yet. Submit the claim to start approvals.
                       </TableCell>
                     </TableRow>
                   )}
-                  {relatedTasks.map((t) => (
-                    <TableRow key={t.id ?? t.requestId}>
-                      <TableCell>{t.name}</TableCell>
-                      <TableCell>{t.requestId}</TableCell>
-                      <TableCell>{t.status}</TableCell>
-                      <TableCell>{t.createdOn}</TableCell>
+                  {claimTasks.map((t) => (
+                    <TableRow key={t.taskId}>
+                      <TableCell className="font-semibold">{t.name}</TableCell>
+                      <TableCell>
+                        <span
+                          className={cn(
+                            "rounded px-1.5 py-0.5 text-[11px] font-bold",
+                            taskState(t) === "Rejected"
+                              ? "bg-red-100 text-red-700"
+                              : taskState(t) === "Open"
+                                ? "bg-amber-100 text-amber-900"
+                                : "bg-emerald-100 text-emerald-900"
+                          )}
+                        >
+                          {taskState(t).toUpperCase()}
+                        </span>
+                      </TableCell>
+                      <TableCell>{t.assigneeName ?? "—"}</TableCell>
+                      <TableCell>{fmt(t.createdOn)}</TableCell>
+                      <TableCell>{fmt(t.completedOn)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -573,8 +744,23 @@ export default function ClaimDetailPage() {
                 </>
               )}
               {activity.map((a) => (
-                <li key={`${a.action}-${a.createdOn}`}>
-                  {a.action} — {a.description}
+                <li
+                  key={`${a.action}-${a.createdOn}`}
+                  className="flex flex-wrap items-baseline gap-1.5"
+                >
+                  <span className="font-semibold text-neutral-800">
+                    {activityLabel(a.action)}
+                  </span>
+                  {a.description &&
+                    a.description !== a.action &&
+                    a.description !== activityLabel(a.action) &&
+                    !/^[A-Z0-9_]+$/.test(a.description) && (
+                      <span className="text-neutral-500">· {a.description}</span>
+                    )}
+                  {a.actorName && (
+                    <span className="text-neutral-400">· {a.actorName}</span>
+                  )}
+                  <span className="text-neutral-400">· {fmt(a.createdOn)}</span>
                 </li>
               ))}
             </ul>
