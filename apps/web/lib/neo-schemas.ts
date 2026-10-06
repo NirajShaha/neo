@@ -26,7 +26,7 @@ const gtinLike = (label: string) =>
 
 export const coreSchema = z.object({
   onBehalf: z.boolean().default(false),
-  buyerCode: required("Buyer Code"),
+  buyerCode: z.string().default(""),
 })
 
 export const claimSchema = z
@@ -47,6 +47,7 @@ export const claimSchema = z
     transactionDrivers: z.string().default(""),
     transactionStart: optionalDate,
     transactionEnd: optionalDate,
+    transactionTypeBreakdown: z.string().default(""),
     nonStandardFlag: z.string().default(""),
     lever: required("Lever"),
     myaRef: bounded("MYA Reference", 255),
@@ -55,11 +56,12 @@ export const claimSchema = z
     implementation: z.date({ message: "Implementation Date is required" }),
     description: z
       .string()
-      .min(1, "Description is required")
+      .min(100, "Description must be at least 100 characters")
       .max(2000, "Description must be 2000 characters or less"),
     system: required("System"),
     strategicBuyer: z.string().default(""),
     commodityArea: z.string().default(""),
+    // "0 - Placeholder" must stay selectable: PPT requires it for a claim to be listed on the home page
     maturity: z.enum(
       [
         "0 - Placeholder",
@@ -74,6 +76,8 @@ export const claimSchema = z
       ["Closed", "Contractual", "Possible", "Probable", "Remote"],
       { message: "Likelihood is required" }
     ),
+    vendorCurrency: z.string().default("USD").describe("Currency from vendor details"),
+    budgetExchangeRate: z.string().default("1.27").describe("Exchange rate from MONEX integration"),
     annualForecastLocal: z
       .string()
       .min(1, "Annual Forecast Local is required")
@@ -87,7 +91,8 @@ export const claimSchema = z
       .regex(
         /^\d+(\.\d{1,5})?$/,
         "Gross Claim Local must be a valid number (max 5 decimals)"
-      ),
+      )
+      .describe("Original supplier claim amount vs expected settlement"),
   })
   .superRefine((v, ctx) => {
     if (v.transactionType === "Lump Sum") {
@@ -114,6 +119,22 @@ export const claimSchema = z
           code: "custom",
           message: "Transaction End Date must be on or after Start Date",
           path: ["transactionEnd"],
+        })
+      }
+    }
+    if (v.transactionType === "POA") {
+      if (!v.transactionStart) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Effective Date is required for POA",
+          path: ["transactionStart"],
+        })
+      }
+      if (!v.transactionTypeBreakdown) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Transaction Type Breakdown is required for POA",
+          path: ["transactionTypeBreakdown"],
         })
       }
     }
@@ -180,14 +201,18 @@ export const partDetailSchema = z.object({
 export const partsSchema = z
   .object({
     systemUpdate: z.enum(["WIPS", "EMC"]).default("WIPS"),
-    claimTitle: z
-      .string()
-      .min(1, "Claim Title is required")
-      .max(20, "Claim Title must be 20 characters or less (CLAIM_TITLE)"),
+    claimTitle: bounded("Claim Title", 255),
     wipsClaimNumber: bounded("WIPS Claim Number", 20),
+    partsCompanyCode: z
+      .string()
+      .default("GB03 - Jaguar Land Rover Limited"),
+    nafReference: bounded("NAF Reference", 255),
+    selectedPlants: z.array(z.string()).default([]),
+    selectAllPlants: z.boolean().default(false),
     parts: z.array(z.string().min(1)).default([]),
     showAllParts: z.boolean().default(false),
     partPlants: z.record(z.string(), z.string()).default({}),
+    partPlantsSelectAll: z.record(z.string(), z.boolean()).default({}),
     partDetails: z.array(partDetailSchema).default([]),
     allPct: z
       .string()
@@ -198,7 +223,12 @@ export const partsSchema = z
     allAbs: numericText("All Absolute Price Change"),
     generated: z.boolean().default(false),
   })
+  // .passthrough() lets this step's validation read `claimType` (owned by claimSchema)
+  // from the full form values without redeclaring it here and clobbering that definition
+  // when all step shapes are merged into wizardSchema.
+  .passthrough()
   .superRefine((v, ctx) => {
+    const isRisk = (v as { claimType?: unknown }).claimType === "Risk"
     if (v.parts.length === 0) {
       ctx.addIssue({
         code: "custom",
@@ -206,8 +236,31 @@ export const partsSchema = z
         path: ["parts"],
       })
     }
+    if (isRisk) {
+      if (!v.partsCompanyCode) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Company Code is required",
+          path: ["partsCompanyCode"],
+        })
+      }
+      if (v.parts.length > 0 && v.selectedPlants.length === 0) {
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "Select at least one plant to extract part details from SAP",
+          path: ["selectedPlants"],
+        })
+      }
+    } else if (!v.claimTitle) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Claim Title is required",
+        path: ["claimTitle"],
+      })
+    }
     v.parts.forEach((p) => {
-      if (!v.partPlants[p]) {
+      if (!v.partPlantsSelectAll[p] && !v.partPlants[p]) {
         ctx.addIssue({
           code: "custom",
           message: `Select a plant for part ${p}`,
@@ -215,12 +268,19 @@ export const partsSchema = z
         })
       }
     })
-    if (v.generated && v.partDetails.length !== v.parts.length) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Regenerate part details after changing the selection",
-        path: ["partDetails"],
-      })
+    if (v.generated) {
+      // "Select All Plants" can fan one part into several rows, so compare
+      // by set membership instead of a strict 1:1 length match.
+      const detailParts = new Set(v.partDetails.map((d) => d.part))
+      const missingPart = v.parts.find((p) => !detailParts.has(p))
+      const extraRow = v.partDetails.find((d) => !v.parts.includes(d.part))
+      if (missingPart || extraRow) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Regenerate part details after changing the selection",
+          path: ["partDetails"],
+        })
+      }
     }
   })
 

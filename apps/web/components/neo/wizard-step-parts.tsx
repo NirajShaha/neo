@@ -3,9 +3,10 @@
 import { useState } from "react"
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form"
 import { format } from "date-fns"
-import { CalendarDays, Check, CircleDot } from "lucide-react"
+import { CalendarDays, Check, CheckCircle2, CircleX, Info, X } from "lucide-react"
 import { Button } from "@workspace/ui/components/button"
 import { Calendar } from "@workspace/ui/components/calendar"
+import { Checkbox } from "@workspace/ui/components/checkbox"
 import {
   Command,
   CommandEmpty,
@@ -39,13 +40,15 @@ import {
   ControlledCheckRow,
   ControlledCountInput,
   ControlledRadioInline,
+  ControlledSelectField,
   FieldError,
   FieldLabel,
 } from "@/components/neo/wizard-fields"
 import {
   absoluteChange,
   initialPartDetail,
-  partNumbers,
+  partNumberOptions,
+  partsCompanyCodes,
   pctChange,
   plants,
   priceSign,
@@ -54,21 +57,22 @@ import type { WizardValues } from "@/lib/neo-schemas"
 import { cn } from "@workspace/ui/lib/utils"
 
 function PlantSelect({
-  part,
   value,
   onChange,
   options,
+  disabled,
 }: {
-  part: string
   value: string
   onChange: (plant: string) => void
   options: string[]
+  disabled?: boolean
 }) {
   return (
     <div>
       <Select
         value={value || null}
         onValueChange={(v) => onChange(v ?? "")}
+        disabled={disabled}
       >
         <SelectTrigger className="h-8 w-full text-xs">
           <SelectValue placeholder="-- Please Select Plant --" />
@@ -85,17 +89,23 @@ function PlantSelect({
   )
 }
 
-function PartPicker({
+function MultiPicker({
+  label,
   selected,
   onToggle,
+  options,
+  placeholder,
 }: {
+  label?: string
   selected: string[]
-  onToggle: (p: string) => void
+  onToggle: (v: string) => void
+  options: string[]
+  placeholder: string
 }) {
   const [open, setOpen] = useState(false)
   return (
     <div>
-      <FieldLabel>Part</FieldLabel>
+      {label && <FieldLabel>{label}</FieldLabel>}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
           render={
@@ -107,9 +117,7 @@ function PartPicker({
               )}
             >
               <span className="truncate">
-                {selected.length === 0
-                  ? "-- Please Select Part --"
-                  : selected.join(", ")}
+                {selected.length === 0 ? placeholder : selected.join(", ")}
               </span>
               <span className="ml-2 flex size-4 items-center justify-center rounded-full bg-emerald-700 text-[10px] text-white">
                 {selected.length > 0 ? <Check className="size-3" /> : null}
@@ -121,17 +129,17 @@ function PartPicker({
           <Command>
             <CommandInput placeholder="Search" />
             <CommandList>
-              <CommandEmpty>No parts found.</CommandEmpty>
+              <CommandEmpty>No options found.</CommandEmpty>
               <CommandGroup>
-                {partNumbers.map((p) => (
+                {options.map((o) => (
                   <CommandItem
-                    key={p}
-                    value={p}
-                    onSelect={() => onToggle(p)}
+                    key={o}
+                    value={o}
+                    onSelect={() => onToggle(o)}
                     className="text-xs"
                   >
-                    {p}
-                    {selected.includes(p) && (
+                    {o}
+                    {selected.includes(o) && (
                       <Check className="ml-auto size-3.5 text-emerald-700" />
                     )}
                   </CommandItem>
@@ -219,9 +227,16 @@ function RunoutDateCell({
 }
 
 export function PartsStep() {
-  const { control, setValue, getValues } = useFormContext<WizardValues>()
+  const { control, setValue, getValues, clearErrors } = useFormContext<WizardValues>()
+  const claimType = useWatch({ control, name: "claimType" })
+  const isRisk = claimType === "Risk"
   const parts = useWatch({ control, name: "parts" }) ?? []
+  const showAllParts = useWatch({ control, name: "showAllParts" }) ?? false
   const partPlants = useWatch({ control, name: "partPlants" }) ?? {}
+  const partPlantsSelectAll =
+    useWatch({ control, name: "partPlantsSelectAll" }) ?? {}
+  const selectedPlants = useWatch({ control, name: "selectedPlants" }) ?? []
+  const selectAllPlants = useWatch({ control, name: "selectAllPlants" }) ?? false
   const generated = useWatch({ control, name: "generated" }) ?? false
   const allPct = useWatch({ control, name: "allPct" }) ?? ""
   const allAbs = useWatch({ control, name: "allAbs" }) ?? ""
@@ -236,7 +251,87 @@ export function PartsStep() {
       : [...parts, p]
     setValue("parts", next, { shouldValidate: true })
     setValue("generated", false)
+    clearErrors("parts")
   }
+
+  const togglePlant = (p: string) => {
+    const next = selectedPlants.includes(p)
+      ? selectedPlants.filter((x) => x !== p)
+      : [...selectedPlants, p]
+    setValue("selectedPlants", next, { shouldValidate: true })
+    setValue("generated", false)
+    clearErrors("selectedPlants")
+  }
+
+  const toggleSelectAllPlantsGlobal = (checked: boolean) => {
+    setValue("selectAllPlants", checked)
+    const next: Record<string, boolean> = {}
+    parts.forEach((p) => {
+      next[p] = checked
+    })
+    setValue("partPlantsSelectAll", next, { shouldValidate: true })
+    setValue("generated", false)
+    clearErrors("partPlants")
+  }
+
+  const toggleRowSelectAll = (p: string, checked: boolean) => {
+    setValue(
+      "partPlantsSelectAll",
+      { ...partPlantsSelectAll, [p]: checked },
+      { shouldValidate: true }
+    )
+    setValue("generated", false)
+    clearErrors("partPlants")
+  }
+
+  const removePart = (p: string) => {
+    setValue(
+      "parts",
+      parts.filter((x) => x !== p),
+      { shouldValidate: true }
+    )
+    const nextPlants = { ...partPlants }
+    delete nextPlants[p]
+    setValue("partPlants", nextPlants, { shouldValidate: true })
+    const nextSelectAll = { ...partPlantsSelectAll }
+    delete nextSelectAll[p]
+    setValue("partPlantsSelectAll", nextSelectAll)
+    setValue("generated", false)
+    clearErrors(["parts", "partPlants"])
+  }
+
+  const resetSelection = () => {
+    setValue("parts", [], { shouldValidate: true })
+    setValue("partPlants", {})
+    setValue("partPlantsSelectAll", {})
+    setValue("selectedPlants", [], { shouldValidate: true })
+    setValue("selectAllPlants", false)
+    replace([])
+    setValue("generated", false)
+    clearErrors(["parts", "partPlants", "selectedPlants", "partDetails"])
+  }
+
+  const fetchPartDetails = async () => {
+    // TODO: call SAP lookup using partsCompanyCode + selectedPlants + parts
+    const nextPartPlants = { ...partPlants }
+    const nextSelectAll = { ...partPlantsSelectAll }
+    parts.forEach((p) => {
+      if (selectAllPlants) {
+        nextSelectAll[p] = true
+      } else if (!nextPartPlants[p] && selectedPlants[0]) {
+        nextPartPlants[p] = selectedPlants[0]
+      }
+    })
+    setValue("partPlants", nextPartPlants, { shouldValidate: true })
+    setValue("partPlantsSelectAll", nextSelectAll, { shouldValidate: true })
+  }
+
+  const plantLabelFor = (p: string) =>
+    partPlantsSelectAll[p]
+      ? selectedPlants.length
+        ? selectedPlants.join(", ")
+        : "All Plants"
+      : (partPlants[p] ?? "")
 
   const setDetail = (idx: number, patch: Record<string, unknown>) => {
     const current = getValues("partDetails")
@@ -249,14 +344,24 @@ export function PartsStep() {
 
   const generate = () => {
     const current = getValues("partDetails")
-    const details = parts.map((p) => {
-      const prev = current.find((d) => d.part === p)
-      return (
-        prev ?? {
-          ...initialPartDetail(p, partPlants[p] ?? plants[0]),
-          description: p === "L8B29K335CC" ? "TUB ASY-FUL" : "Test",
-        }
-      )
+    const details: ReturnType<typeof initialPartDetail>[] = []
+    parts.forEach((p) => {
+      // "Select All Plants" fans a single part out into one row per selected plant
+      const plantsForRow =
+        isRisk && partPlantsSelectAll[p]
+          ? selectedPlants.length
+            ? selectedPlants
+            : [plants[0]]
+          : [partPlants[p] || selectedPlants[0] || plants[0]]
+      plantsForRow.forEach((plantName) => {
+        const prev = current.find((d) => d.part === p && d.plant === plantName)
+        details.push(
+          prev ?? {
+            ...initialPartDetail(p, plantName),
+            description: p === "L8B29K335CC" ? "TUB ASY-FUL" : "Test",
+          }
+        )
+      })
     })
     replace(details)
     setValue("generated", true, { shouldValidate: true })
@@ -286,82 +391,222 @@ export function PartsStep() {
 
   return (
     <div className="grid grid-cols-2 gap-x-10 gap-y-4">
-      <div>
-        <FieldLabel>System to Update</FieldLabel>
-        <ControlledRadioInline<WizardValues>
-          name="systemUpdate"
-          control={control}
-          options={["WIPS", "EMC"]}
-        />
-      </div>
-      <ControlledCountInput<WizardValues>
-        id="claimtitle"
-        label="Claim Title"
-        required
-        hint="Max 20 characters (CLAIM_TITLE)"
-        name="claimTitle"
-        control={control}
-        max={20}
-        placeholder="claim title"
-      />
-      <ControlledCountInput<WizardValues>
-        id="wipsclaim"
-        label="WIPS Claim Number"
-        hint="Max 20 characters (WIPS_CLAIM_NUMBER)"
-        name="wipsClaimNumber"
-        control={control}
-        max={20}
-        placeholder="WIPS claim number"
-      />
+      {isRisk ? (
+        <>
+          <div className="col-span-2">
+            <ControlledSelectField<WizardValues>
+              label="Company Code"
+              required
+              hint="Enter the company code. Note: It is always GB03 for JLR"
+              name="partsCompanyCode"
+              control={control}
+              options={partsCompanyCodes}
+              allowAny={false}
+            />
+            <p className="mt-0.5 text-[10px] text-neutral-400">
+              Please select GB03.
+            </p>
+          </div>
+          <ControlledCountInput<WizardValues>
+            id="nafref"
+            label="NAF Reference"
+            name="nafReference"
+            control={control}
+            max={255}
+            placeholder="NAF Reference"
+          />
 
-      <PartPicker selected={parts} onToggle={togglePart} />
-      <ControlledCheckRow<WizardValues>
-        name="showAllParts"
-        control={control}
-        label="Show all Part(s)"
-      />
+          <div className="col-span-2 flex items-start gap-2 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-800">
+            <Info className="mt-0.5 size-3.5 shrink-0" />
+            <span>
+              If you wish to introduce plant specific pricing for certain
+              parts, please do this by raising a request with Transaction
+              Driver of &apos;ATP&apos;.
+            </span>
+          </div>
+
+          <div className="col-span-2">
+            <MultiPicker
+              label="Plants"
+              selected={selectedPlants}
+              onToggle={togglePlant}
+              options={plants}
+              placeholder="-- Please Select Plant --"
+            />
+            <p className="mt-0.5 text-[10px] text-neutral-400">
+              Please select the plants to extract part details from SAP
+            </p>
+          </div>
+
+          <div className="col-span-2 grid grid-cols-[1fr_auto] items-start gap-x-6">
+            <MultiPicker
+              label="Select Parts"
+              selected={parts}
+              onToggle={togglePart}
+              options={partNumberOptions(true)}
+              placeholder="-- Please Select Part --"
+            />
+            <div>
+              <FieldLabel>Select All Plants</FieldLabel>
+              <div className="flex h-8 items-center">
+                <Checkbox
+                  checked={selectAllPlants}
+                  onCheckedChange={(v) =>
+                    toggleSelectAllPlantsGlobal(v as boolean)
+                  }
+                />
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <div>
+            <FieldLabel>System to Update</FieldLabel>
+            <ControlledRadioInline<WizardValues>
+              name="systemUpdate"
+              control={control}
+              options={["WIPS", "EMC"]}
+            />
+          </div>
+          <ControlledCountInput<WizardValues>
+            id="claimtitle"
+            label="Claim Title"
+            required
+            name="claimTitle"
+            control={control}
+            max={255}
+            placeholder="claim title"
+          />
+
+          <MultiPicker
+            label="Part"
+            selected={parts}
+            onToggle={togglePart}
+            options={partNumberOptions(showAllParts)}
+            placeholder="-- Please Select Part --"
+          />
+          <ControlledCheckRow<WizardValues>
+            name="showAllParts"
+            control={control}
+            label="Show all Part(s)"
+          />
+        </>
+      )}
 
       {parts.length > 0 && (
         <div className="col-span-2">
-          <p className="mb-1 text-[11px] font-bold text-neutral-700">
-            Select Plant
-          </p>
+          {isRisk ? (
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-[11px] font-bold text-neutral-700">
+                Part to Plant Mapping
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[11px]"
+                disabled={selectedPlants.length === 0}
+                onClick={fetchPartDetails}
+              >
+                GET PART DETAILS
+              </Button>
+            </div>
+          ) : (
+            <p className="mb-1 text-[11px] font-bold text-neutral-700">
+              Select Plant
+            </p>
+          )}
           <div className="border border-neutral-200">
             <Table className="text-xs">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="text-[11px] font-semibold text-neutral-600">
-                    Part Number(s)
+                    {isRisk ? "Part Number" : "Part Number(s)"}
                   </TableHead>
                   <TableHead className="text-[11px] font-semibold text-neutral-600">
-                    Plant
+                    {isRisk ? "Plants" : "Plant"}
                   </TableHead>
+                  {isRisk && (
+                    <>
+                      <TableHead className="text-center text-[11px] font-semibold text-neutral-600">
+                        Select All Plants
+                      </TableHead>
+                      <TableHead className="w-10" />
+                    </>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {parts.map((p) => (
-                  <TableRow key={p} className="hover:bg-transparent">
-                    <TableCell>{p}</TableCell>
-                    <TableCell>
-                      <PlantSelect
-                        part={p}
-                        value={partPlants[p] ?? ""}
-                        onChange={(plant) => {
-                          const next = plant
-                            ? { ...partPlants, [p]: plant }
-                            : { ...partPlants }
-                          if (!plant) delete next[p]
-                          setValue("partPlants", next, { shouldValidate: true })
-                          setValue("generated", false)
-                        }}
-                        options={plants}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {parts.map((p) => {
+                  const rowSelectAll = isRisk && !!partPlantsSelectAll[p]
+                  return (
+                    <TableRow key={p} className="hover:bg-transparent">
+                      <TableCell>{p}</TableCell>
+                      <TableCell>
+                        {rowSelectAll ? (
+                          <p className="text-xs text-neutral-600">
+                            {plantLabelFor(p)}
+                          </p>
+                        ) : (
+                          <PlantSelect
+                            value={partPlants[p] ?? ""}
+                            onChange={(plant) => {
+                              const next = plant
+                                ? { ...partPlants, [p]: plant }
+                                : { ...partPlants }
+                              if (!plant) delete next[p]
+                              setValue("partPlants", next, {
+                                shouldValidate: true,
+                              })
+                              setValue("generated", false)
+                              clearErrors("partPlants")
+                            }}
+                            options={
+                              isRisk && selectedPlants.length
+                                ? selectedPlants
+                                : plants
+                            }
+                          />
+                        )}
+                      </TableCell>
+                      {isRisk && (
+                        <>
+                          <TableCell className="text-center">
+                            <Checkbox
+                              checked={rowSelectAll}
+                              onCheckedChange={(v) =>
+                                toggleRowSelectAll(p, v as boolean)
+                              }
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              onClick={() => removePart(p)}
+                              aria-label={`Remove ${p}`}
+                            >
+                              <X className="size-3.5 text-red-500" />
+                            </Button>
+                          </TableCell>
+                        </>
+                      )}
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           </div>
+          <FieldError
+            message={(() => {
+              const missing = parts.find(
+                (p) => !partPlantsSelectAll[p] && !partPlants[p]
+              )
+              return missing
+                ? `Select a plant for part ${missing}`
+                : undefined
+            })()}
+          />
           <div className="mt-1 flex items-center justify-end gap-2">
             <span className="text-[11px] text-neutral-500">
               {parts.length} items
@@ -370,11 +615,7 @@ export function PartsStep() {
               variant="outline"
               size="sm"
               className="h-7 text-[11px]"
-              onClick={() => {
-                setValue("parts", [], { shouldValidate: true })
-                replace([])
-                setValue("generated", false)
-              }}
+              onClick={resetSelection}
             >
               RESET SELECTION
             </Button>
@@ -385,11 +626,12 @@ export function PartsStep() {
         </div>
       )}
 
+
       {generated && detailFields.length > 0 && (
         <div className="col-span-2">
           <div className="grid grid-cols-2 gap-x-10">
             <div>
-              <FieldLabel hint="Apply to every row">
+              <FieldLabel hint="Enter the percentage and price difference from the current price listing">
                 All % Difference
               </FieldLabel>
               <Input
@@ -401,7 +643,7 @@ export function PartsStep() {
               />
             </div>
             <div>
-              <FieldLabel hint="Apply to every row">
+              <FieldLabel hint="Enter the percentage and price difference from the current price listing">
                 All Absolute Price Change
               </FieldLabel>
               <Input
@@ -463,11 +705,20 @@ export function PartsStep() {
                       <TableCell className="px-2 py-1.5">
                         <CellInput
                           value={d.currentPrice}
-                          onChange={(v) => setDetail(i, { currentPrice: v })}
+                          onChange={(v) =>
+                            setDetail(i, {
+                              currentPrice: v,
+                              currentPriceChanged: true,
+                            })
+                          }
                         />
                       </TableCell>
                       <TableCell className="px-2 py-1.5 text-center">
-                        <CircleDot className="inline size-4 text-red-500" />
+                        {d.currentPriceChanged ? (
+                          <CheckCircle2 className="inline size-4 text-emerald-600" />
+                        ) : (
+                          <CircleX className="inline size-4 text-red-500" />
+                        )}
                       </TableCell>
                       <TableCell className="px-2 py-1.5">
                         <CellInput
@@ -549,3 +800,4 @@ export function PartsStep() {
     </div>
   )
 }
+

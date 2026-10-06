@@ -182,14 +182,26 @@ export const notificationMethods = [
 
 export const transactionDrivers = ["Currency", "Non Design", "Raw Material"]
 
+export const transactionTypeBreakdownOptions = [
+  "AIM",
+  "EMC/BAC/LTD",
+  "Price Claim",
+  "Price Correction",
+  "Resource",
+  "FINA",
+]
+
 export const nonStandardFlags = ["Prepayment", "Loans", "Deposits"]
 
 export const levers = [
-  "Homeless",
-  "VA/VE",
-  "Resourcing",
-  "Commercial Negotiation",
-  "Design Change",
+  "Auto Materials",
+  "Amortisation(Screed) Opps",
+  "Cartel Recovery",
+  "Commercial PPAP Activities(QAF & PSW Validation)",
+  "Distress",
+  "Duties and Customs",
+  "EMA Sourcing",
+  "End of life",
 ]
 
 export const systems = [
@@ -254,6 +266,8 @@ export const purchGroups = ["PG-100 Chassis", "PG-200 Body", "PG-300 Electrical"
 
 export const companyCodes = ["JLR UK Ltd", "JLR Slovakia", "JLR India"]
 
+export const partsCompanyCodes = ["GB03 - Jaguar Land Rover Limited"]
+
 export const plants = [
   "Castle Bromwich Assembly",
   "Castle Bromwich KD",
@@ -263,12 +277,20 @@ export const plants = [
   "Solihull Assembly",
 ]
 
-export const partNumbers = [
+const corePartNumbers = [
   "02C2D19768",
   "02C2C34128",
   "02NCA2246AB",
   "L8B29K335CC",
 ]
+
+const extraPartNumbers = ["MR8D220146AA", "L8B29K336CC", "02C2C34129"]
+
+export const partNumbers = corePartNumbers
+
+export function partNumberOptions(showAll: boolean) {
+  return showAll ? [...corePartNumbers, ...extraPartNumbers] : corePartNumbers
+}
 
 export type PartDetail = {
   part: string
@@ -325,14 +347,44 @@ export function priceSign(d: PartDetail) {
   return n < c ? "−" : "+"
 }
 
-const BUDGET_FX = 1.27
 export const budgetFxRate = "1.27"
 export const claimCurrency = "USD"
 
-export function toGbp(local: string) {
+export function toGbp(local: string, exchangeRate: string = budgetFxRate) {
   const n = parseFloat(local.replace(/,/g, ""))
+  const rate = parseFloat(exchangeRate)
+  if (!Number.isFinite(n) || !Number.isFinite(rate)) return "-"
+  return (n / rate).toLocaleString("en-GB", {
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+  })
+}
+
+/**
+ * Calculate Calendarised Forecast Local
+ * Represents the claim amount adjusted for the calendar year based on mandatory fields.
+ * Currently mirrors Annual Forecast Local (can be enhanced with date-based pro-rating).
+ */
+export function calendarisedForecastLocal(annualForecast: string): string {
+  const n = parseFloat(annualForecast.replace(/,/g, ""))
   if (!Number.isFinite(n)) return "-"
-  return (n / BUDGET_FX).toLocaleString("en-GB", {
+  return n.toLocaleString("en-GB", {
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+  })
+}
+
+/**
+ * Calculate Calendarised Forecast in GBP from the local calendarised forecast.
+ */
+export function calendarisedForecastGbp(
+  annualForecast: string,
+  exchangeRate: string = budgetFxRate
+): string {
+  const n = parseFloat(annualForecast.replace(/,/g, ""))
+  const rate = parseFloat(exchangeRate)
+  if (!Number.isFinite(n) || !Number.isFinite(rate)) return "-"
+  return (n / rate).toLocaleString("en-GB", {
     minimumFractionDigits: 4,
     maximumFractionDigits: 4,
   })

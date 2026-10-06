@@ -38,7 +38,7 @@ function BuyerPicker({
   const [open, setOpen] = useState(false)
   return (
     <div>
-      <FieldLabel required>Buyer Code</FieldLabel>
+      <FieldLabel>Buyer Code</FieldLabel>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
           render={
@@ -98,6 +98,7 @@ export function CoreDataStep() {
   const {
     control,
     setValue,
+    clearErrors,
     formState: { errors },
   } = useFormContext<WizardValues>()
   const buyerCode = useWatch({ control, name: "buyerCode" }) ?? ""
@@ -116,9 +117,10 @@ export function CoreDataStep() {
 
       <BuyerPicker
         value={buyerCode}
-        onChange={(v) =>
+        onChange={(v) => {
           setValue("buyerCode", v, { shouldValidate: true })
-        }
+          clearErrors("buyerCode")
+        }}
         error={errors.buyerCode?.message as string | undefined}
       />
       <div>
