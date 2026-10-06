@@ -5,6 +5,7 @@ import { format } from "date-fns"
 import { CalendarDays, CircleAlert } from "lucide-react"
 import {
   Controller,
+  useFormContext,
   type Control,
   type FieldPath,
   type FieldValues,
@@ -128,6 +129,7 @@ export function ControlledTextField<T extends FieldValues>({
   hint?: string
   id: string
 } & ControlledProps<T>) {
+  const { clearErrors } = useFormContext<T>()
   return (
     <Controller
       name={name}
@@ -141,7 +143,10 @@ export function ControlledTextField<T extends FieldValues>({
             id={id}
             {...props}
             value={(field.value as string | number | undefined) ?? ""}
-            onChange={(e) => field.onChange(e.target.value)}
+            onChange={(e) => {
+              field.onChange(e.target.value)
+              clearErrors(name)
+            }}
             onBlur={field.onBlur}
             name={field.name}
             ref={field.ref}
@@ -211,6 +216,7 @@ export function ControlledAreaField<T extends FieldValues>({
   id: string
   max?: number
 } & ControlledProps<T>) {
+  const { clearErrors } = useFormContext<T>()
   return (
     <Controller
       name={name}
@@ -227,7 +233,10 @@ export function ControlledAreaField<T extends FieldValues>({
                 id={id}
                 {...props}
                 value={value}
-                onChange={(e) => field.onChange(e.target.value)}
+                onChange={(e) => {
+                  field.onChange(e.target.value)
+                  clearErrors(name)
+                }}
                 onBlur={field.onBlur}
                 name={field.name}
                 ref={field.ref}
@@ -317,6 +326,7 @@ export function ControlledSelectField<T extends FieldValues>({
   placeholder?: string
   allowAny?: boolean
 } & ControlledProps<T>) {
+  const { clearErrors } = useFormContext<T>()
   return (
     <Controller
       name={name}
@@ -328,9 +338,10 @@ export function ControlledSelectField<T extends FieldValues>({
           </FieldLabel>
           <Select
             value={(field.value as string | undefined) || null}
-            onValueChange={(v) =>
+            onValueChange={(v) => {
               field.onChange(v === "__any" ? "" : (v ?? ""))
-            }
+              clearErrors(name)
+            }}
           >
             <SelectTrigger
               aria-invalid={!!fieldState.error}
@@ -406,6 +417,7 @@ export function ControlledRadioCards<T extends FieldValues, V extends string>({
   control,
   options,
 }: ControlledProps<T> & { options: V[] }) {
+  const { clearErrors } = useFormContext<T>()
   return (
     <Controller
       name={name}
@@ -413,7 +425,10 @@ export function ControlledRadioCards<T extends FieldValues, V extends string>({
       render={({ field, fieldState }) => (
         <RadioCards
           value={(field.value as V | undefined) ?? ("" as V)}
-          onChange={(v) => field.onChange(v)}
+          onChange={(v) => {
+            field.onChange(v)
+            clearErrors(name)
+          }}
           options={options}
           error={fieldState.error?.message}
         />
@@ -460,6 +475,7 @@ export function ControlledRadioInline<T extends FieldValues>({
   control,
   options,
 }: ControlledProps<T> & { options: string[] }) {
+  const { clearErrors } = useFormContext<T>()
   return (
     <Controller
       name={name}
@@ -467,7 +483,10 @@ export function ControlledRadioInline<T extends FieldValues>({
       render={({ field, fieldState }) => (
         <RadioInline
           value={(field.value as string | undefined) ?? ""}
-          onChange={(v) => field.onChange(v)}
+          onChange={(v) => {
+            field.onChange(v)
+            clearErrors(name)
+          }}
           options={options}
           error={fieldState.error?.message}
         />
@@ -503,6 +522,7 @@ export function ControlledCheckRow<T extends FieldValues>({
   control,
   label,
 }: ControlledProps<T> & { label: string }) {
+  const { clearErrors } = useFormContext<T>()
   return (
     <Controller
       name={name}
@@ -510,7 +530,10 @@ export function ControlledCheckRow<T extends FieldValues>({
       render={({ field, fieldState }) => (
         <CheckRow
           checked={(field.value as boolean | undefined) ?? false}
-          onChange={(v) => field.onChange(v)}
+          onChange={(v) => {
+            field.onChange(v)
+            clearErrors(name)
+          }}
           label={label}
           error={fieldState.error?.message}
         />
@@ -519,10 +542,18 @@ export function ControlledCheckRow<T extends FieldValues>({
   )
 }
 
-export function StaticField({ label, value }: { label: string; value: string }) {
+export function StaticField({ 
+  label, 
+  value, 
+  hint 
+}: { 
+  label: string
+  value: string
+  hint?: string
+}) {
   return (
     <div>
-      <p className="mb-1 text-[11px] font-bold text-neutral-700">{label}</p>
+      <FieldLabel hint={hint}>{label}</FieldLabel>
       <p className="flex h-8 items-center text-xs text-neutral-500">
         {value || "-"}
       </p>
@@ -533,19 +564,21 @@ export function StaticField({ label, value }: { label: string; value: string }) 
 export function DateField({
   label,
   required,
+  hint,
   value,
   onChange,
   error,
 }: {
   label: string
   required?: boolean
+  hint?: string
   value: Date | undefined
   onChange: (d: Date | undefined) => void
   error?: string
 }) {
   return (
     <div>
-      <FieldLabel required={required}>{label}</FieldLabel>
+      <FieldLabel required={required} hint={hint}>{label}</FieldLabel>
       <Popover>
         <PopoverTrigger
           render={
@@ -579,12 +612,15 @@ export function DateField({
 export function ControlledDateField<T extends FieldValues>({
   label,
   required,
+  hint,
   name,
   control,
 }: {
   label: string
   required?: boolean
+  hint?: string
 } & ControlledProps<T>) {
+  const { clearErrors } = useFormContext<T>()
   return (
     <Controller
       name={name}
@@ -593,8 +629,12 @@ export function ControlledDateField<T extends FieldValues>({
         <DateField
           label={label}
           required={required}
+          hint={hint}
           value={field.value as Date | undefined}
-          onChange={(d) => field.onChange(d)}
+          onChange={(d) => {
+            field.onChange(d)
+            clearErrors(name)
+          }}
           error={fieldState.error?.message}
         />
       )}
@@ -664,6 +704,7 @@ export function ControlledCountInput<T extends FieldValues>({
   max: number
   placeholder?: string
 } & ControlledProps<T>) {
+  const { clearErrors } = useFormContext<T>()
   return (
     <Controller
       name={name}
@@ -678,7 +719,10 @@ export function ControlledCountInput<T extends FieldValues>({
             id={id}
             value={value}
             max={max}
-            onChange={(v) => field.onChange(v)}
+            onChange={(v) => {
+              field.onChange(v)
+              clearErrors(name)
+            }}
             placeholder={placeholder}
             error={fieldState.error?.message}
           />
