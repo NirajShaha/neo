@@ -10,7 +10,7 @@ import {
 } from "react"
 import { useRouter } from "next/navigation"
 import { backendPath } from "@/lib/constants"
-import type { ClaimRow } from "@/lib/neo-data"
+import type { ClaimData, ClaimRow } from "@/lib/neo-data"
 import { claims as seedClaims } from "@/lib/neo-data"
 
 export type PendingApprovalItem = {
@@ -144,6 +144,7 @@ type BackendClaim = {
   buyerName?: string
   pmCode?: string
   pmName?: string
+  payload?: string
 }
 
 type BackendApproval = {
@@ -201,6 +202,16 @@ function fmtDateOnly(value?: string) {
     .toUpperCase()
 }
 
+function parseClaimData(payload?: string): ClaimData | undefined {
+  if (!payload) return undefined
+  try {
+    const parsed = JSON.parse(payload)
+    return parsed && typeof parsed === "object" ? (parsed as ClaimData) : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function toClaimRow(c: BackendClaim): ClaimRow {
   return {
     lineId: c.lineId,
@@ -223,6 +234,7 @@ function toClaimRow(c: BackendClaim): ClaimRow {
     buyerName: c.buyerName ?? "Buyer Officer",
     pmCode: c.pmCode ?? "ZZ1X",
     pmName: c.pmName ?? "Purchasing Manager",
+    data: parseClaimData(c.payload),
   }
 }
 

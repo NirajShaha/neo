@@ -1,3 +1,78 @@
+export type ClaimDoc = {
+  name: string
+  type: string
+  description: string
+}
+
+export type ClaimPartDetail = {
+  part?: string
+  plant?: string
+  currentPrice?: string
+  currentCurrency?: string
+  description?: string
+  newPrice?: string
+  newCurrency?: string
+  runout?: string
+  runoutDate?: string
+  atpRef?: string
+}
+
+export type ClaimData = {
+  onBehalf?: boolean
+  buyerCode?: string
+  claimType?: string
+  confidential?: string
+  fiscalYear?: string
+  notification?: string
+  vendor?: string
+  dt2Vendor?: string
+  transactionType?: string
+  transactionDrivers?: string
+  transactionStart?: string
+  transactionEnd?: string
+  transactionTypeBreakdown?: string
+  nonStandardFlag?: string
+  lever?: string
+  myaRef?: string
+  scpaRef?: string
+  goodsReceipt?: string
+  implementation?: string
+  description?: string
+  system?: string
+  strategicBuyer?: string
+  commodityArea?: string
+  maturity?: string
+  likelihood?: string
+  vendorCurrency?: string
+  budgetExchangeRate?: string
+  annualForecastLocal?: string
+  grossClaimLocal?: string
+  docs?: ClaimDoc[]
+  co2Start?: string
+  co2End?: string
+  co2Change?: string
+  materialGroup?: string
+  vehicleLine?: string
+  manualInvoice?: string
+  manualInvoiceNo?: string
+  purchOrg?: string
+  purchGroup?: string
+  companyCode?: string
+  plant?: string
+  sapLsp?: string
+  poDesc?: string
+  systemUpdate?: string
+  claimTitle?: string
+  wipsClaimNumber?: string
+  partsCompanyCode?: string
+  nafReference?: string
+  selectedPlants?: string[]
+  parts?: string[]
+  partDetails?: ClaimPartDetail[]
+  allPct?: string
+  allAbs?: string
+}
+
 export type ClaimRow = {
   lineId: string
   parentId: string
@@ -19,6 +94,7 @@ export type ClaimRow = {
   buyerName: string
   pmCode: string
   pmName: string
+  data?: ClaimData
 }
 
 export const kpis = [

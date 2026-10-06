@@ -1,5 +1,6 @@
 package com.neo.backend.api;
 
+import com.neo.backend.config.NeoProperties;
 import com.neo.backend.domain.Document;
 import com.neo.backend.domain.Note;
 import com.neo.backend.repo.DocumentRepository;
@@ -9,8 +10,15 @@ import com.neo.backend.service.ClaimService;
 import com.neo.backend.service.TaskAppService;
 import com.neo.backend.workflow.dto.ClaimDecisionView;
 import com.neo.backend.workflow.dto.ClaimTaskView;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,18 +39,21 @@ public class ClaimDetailController {
     private final DocumentRepository documents;
     private final ActivityService activity;
     private final TaskAppService tasks;
+    private final NeoProperties properties;
 
     public ClaimDetailController(
             ClaimService claims,
             NoteRepository notes,
             DocumentRepository documents,
             ActivityService activity,
-            TaskAppService tasks) {
+            TaskAppService tasks,
+            NeoProperties properties) {
         this.claims = claims;
         this.notes = notes;
         this.documents = documents;
         this.activity = activity;
         this.tasks = tasks;
+        this.properties = properties;
     }
 
     @GetMapping("/audit")
@@ -109,12 +120,27 @@ public class ClaimDetailController {
         document.setFileName(file.getOriginalFilename() == null ? "upload" : file.getOriginalFilename());
         document.setFileType(fileType);
         document.setDescription(description);
-        document.setStoragePath("memory:" + document.getFileName());
+        document.setStoragePath(store(file, document.getFileName()));
         document.setSizeBytes(file.getSize());
         document.setCreatedBy(authentication == null ? "" : authentication.getName());
         Document saved = documents.save(document);
         activity.record("ATTACHMENT_ADDED", saved.getFileName(), "Claim", lineId,
                 authentication == null ? "" : authentication.getName(), "{}");
         return saved;
+    }
+
+    private String store(MultipartFile file, String fileName) {
+        Path dir = Paths.get(properties.storageDir()).toAbsolutePath().normalize();
+        String safeName = Paths.get(fileName).getFileName().toString().replaceAll("[^A-Za-z0-9._-]", "_");
+        Path target = dir.resolve(UUID.randomUUID() + "-" + safeName);
+        try {
+            Files.createDirectories(dir);
+            try (InputStream in = file.getInputStream()) {
+                Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to store uploaded file: " + e.getMessage(), e);
+        }
+        return target.toString();
     }
 }

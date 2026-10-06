@@ -1,3 +1,5 @@
+import type { WizardValues } from "@/lib/neo-schemas"
+
 export type WizardStepKey =
   | "core"
   | "claim"
@@ -395,4 +397,135 @@ export function co2Delta(start: string, end: string) {
   const e = parseFloat(end)
   if (!Number.isFinite(s) || !Number.isFinite(e)) return "-"
   return (e - s).toLocaleString("en-GB", { maximumFractionDigits: 2 })
+}
+
+function toDate(value: unknown): Date | undefined {
+  if (value === undefined || value === null || value === "") return undefined
+  const date = new Date(String(value))
+  return Number.isNaN(date.getTime()) ? undefined : date
+}
+
+function asObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+export function payloadToWizardForm(
+  raw: Record<string, unknown>
+): WizardValues {
+  const str = (key: string, fallback = ""): string => {
+    const value = raw[key]
+    return value === undefined || value === null ? fallback : String(value)
+  }
+  const bool = (key: string): boolean => raw[key] === true
+  const list = (key: string): string[] =>
+    Array.isArray(raw[key]) ? (raw[key] as unknown[]).map(String) : []
+
+  const claimType = str("claimType")
+  const transactionType = str("transactionType")
+  const confidential = str("confidential")
+  const maturity = str("maturity")
+  const likelihood = str("likelihood")
+  const systemUpdate = str("systemUpdate")
+
+  const docs: UploadedDoc[] = Array.isArray(raw.docs)
+    ? (raw.docs as Record<string, unknown>[]).map((d) => ({
+        name: String(d?.name ?? ""),
+        type: String(d?.type ?? ""),
+        description: String(d?.description ?? ""),
+      }))
+    : []
+
+  const partDetails: PartDetail[] = Array.isArray(raw.partDetails)
+    ? (raw.partDetails as Record<string, unknown>[]).map((p) => {
+        const runout = String(p?.runout ?? "")
+        return {
+          part: String(p?.part ?? ""),
+          plant: String(p?.plant ?? ""),
+          currentPrice: String(p?.currentPrice ?? ""),
+          currentPriceChanged: p?.currentPriceChanged === true,
+          currentCurrency: String(p?.currentCurrency ?? "EUR"),
+          description: String(p?.description ?? ""),
+          newPrice: String(p?.newPrice ?? ""),
+          newCurrency: String(p?.newCurrency ?? "EUR"),
+          runout: runout === "Yes" || runout === "No" ? runout : "",
+          runoutDate: toDate(p?.runoutDate),
+          atpRef: String(p?.atpRef ?? ""),
+        }
+      })
+    : []
+
+  return {
+    onBehalf: bool("onBehalf"),
+    buyerCode: str("buyerCode"),
+    claimType:
+      claimType === "Risk" || claimType === "Opportunity"
+        ? claimType
+        : (undefined as unknown as WizardValues["claimType"]),
+    confidential: confidential === "Yes" || confidential === "No" ? confidential : "No",
+    fiscalYear: str("fiscalYear", "2024-2025"),
+    notification: str("notification"),
+    vendor: str("vendor"),
+    showAllVendors: bool("showAllVendors"),
+    dt2Vendor: str("dt2Vendor"),
+    showAllDt2: bool("showAllDt2"),
+    transactionType:
+      transactionType === "Lump Sum" || transactionType === "POA"
+        ? transactionType
+        : (undefined as unknown as WizardValues["transactionType"]),
+    transactionDrivers: str("transactionDrivers"),
+    transactionStart: toDate(raw.transactionStart),
+    transactionEnd: toDate(raw.transactionEnd),
+    transactionTypeBreakdown: str("transactionTypeBreakdown"),
+    nonStandardFlag: str("nonStandardFlag"),
+    lever: str("lever"),
+    myaRef: str("myaRef"),
+    scpaRef: str("scpaRef"),
+    goodsReceipt: toDate(raw.goodsReceipt),
+    implementation: toDate(raw.implementation) as WizardValues["implementation"],
+    description: str("description"),
+    system: str("system"),
+    strategicBuyer: str("strategicBuyer"),
+    commodityArea: str("commodityArea"),
+    maturity: maturityStatuses.includes(maturity)
+      ? (maturity as WizardValues["maturity"])
+      : (undefined as unknown as WizardValues["maturity"]),
+    likelihood: likelihoods.includes(likelihood)
+      ? (likelihood as WizardValues["likelihood"])
+      : (undefined as unknown as WizardValues["likelihood"]),
+    vendorCurrency: str("vendorCurrency", "USD"),
+    budgetExchangeRate: str("budgetExchangeRate", "1.27"),
+    annualForecastLocal: str("annualForecastLocal"),
+    grossClaimLocal: str("grossClaimLocal"),
+    docs,
+    co2Start: str("co2Start"),
+    co2End: str("co2End"),
+    co2Change: toDate(raw.co2Change),
+    materialGroup: str("materialGroup"),
+    vehicleLine: str("vehicleLine"),
+    manualInvoice: str("manualInvoice", "No") === "Yes" ? "Yes" : "No",
+    manualInvoiceNo: str("manualInvoiceNo"),
+    purchOrg: str("purchOrg"),
+    purchGroup: str("purchGroup"),
+    companyCode: str("companyCode"),
+    plant: str("plant"),
+    sapLsp: str("sapLsp"),
+    poDesc: str("poDesc"),
+    systemUpdate: systemUpdate === "WIPS" || systemUpdate === "EMC" ? systemUpdate : "WIPS",
+    claimTitle: str("claimTitle"),
+    wipsClaimNumber: str("wipsClaimNumber"),
+    partsCompanyCode: str("partsCompanyCode", "GB03 - Jaguar Land Rover Limited"),
+    nafReference: str("nafReference"),
+    selectedPlants: list("selectedPlants"),
+    selectAllPlants: bool("selectAllPlants"),
+    parts: list("parts"),
+    showAllParts: bool("showAllParts"),
+    partPlants: asObject(raw.partPlants) as Record<string, string>,
+    partPlantsSelectAll: asObject(raw.partPlantsSelectAll) as Record<string, boolean>,
+    partDetails,
+    allPct: str("allPct"),
+    allAbs: str("allAbs"),
+    generated: bool("generated"),
+  }
 }

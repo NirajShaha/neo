@@ -3,6 +3,7 @@ package com.neo.backend.domain;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 
 @Entity
 @Table(name = "mci_document")
@@ -64,6 +65,16 @@ public class Document extends BaseEntity {
 
     public void setStoragePath(String storagePath) {
         this.storagePath = storagePath;
+    }
+
+    @Transient
+    public String getUrl() {
+        if (storagePath == null || storagePath.isBlank()) {
+            return null;
+        }
+        String normalized = storagePath.replace('\\', '/');
+        String name = normalized.substring(normalized.lastIndexOf('/') + 1);
+        return "/storage/" + name;
     }
 
     public long getSizeBytes() {
