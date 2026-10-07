@@ -19,6 +19,7 @@ import { Textarea } from "@workspace/ui/components/textarea"
 import { NeoHeader } from "@/components/neo/neo-header"
 import { FieldError } from "@/components/neo/wizard-fields"
 import { noteSchema, type NoteValues } from "@/lib/neo-schemas"
+import { co2Delta } from "@/lib/neo-wizard"
 import { useNeoStore } from "@/lib/neo-store"
 import { useApi } from "@/lib/neo-api"
 import { cn } from "@workspace/ui/lib/utils"
@@ -144,6 +145,23 @@ function fmt(value?: string | null): string {
     .toUpperCase()
 }
 
+function fmtDay(value?: string | null): string {
+  if (!value) {
+    return "—"
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+  return date
+    .toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    })
+    .toUpperCase()
+}
+
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <h3 className="mt-4 flex items-center gap-1 text-sm font-bold text-emerald-900">
@@ -167,6 +185,7 @@ type BackendAttachment = {
   fileName: string
   fileType: string
   description: string
+  url?: string | null
 }
 type BackendActivity = {
   action: string
@@ -310,7 +329,7 @@ export default function ClaimDetailPage() {
         </h1>
         <div className="flex gap-2">
           <Link
-            href="/create-claim"
+            href={`/create-claim?claim=${encodeURIComponent(claim.lineId)}`}
             className="rounded border border-white/60 px-2 py-1 text-[11px] font-semibold hover:bg-white/10"
           >
             UPDATE CLAIM
@@ -434,21 +453,30 @@ export default function ClaimDetailPage() {
                   </p>
                 </div>
                 <Kv label="Fiscal Year" value={claim.fiscalYear} />
-                <Kv label="Method of Notification" value="None" />
+                <Kv
+                  label="Method of Notification"
+                  value={claim.data?.notification || "None"}
+                />
               </div>
 
               <SectionTitle>Vendor Details</SectionTitle>
               <div className="mt-2 grid grid-cols-1 gap-y-3">
                 <Kv label="Vendor ⓘ" value={claim.vendorCode} />
-                <Kv label="DT2 Vendor ⓘ" value="-" />
+                <Kv label="DT2 Vendor ⓘ" value={claim.data?.dt2Vendor || "-"} />
               </div>
 
               <SectionTitle>Basic Details</SectionTitle>
               <div className="mt-2 grid grid-cols-3 gap-x-10 gap-y-3">
                 <Kv label="Transaction Type" value={claim.transactionType} />
                 <Kv label="Effective Date" value={claim.implementationDate} />
-                <Kv label="Transaction Type Breakdown" value="-" />
-                <Kv label="Transaction Drivers" value="-" />
+                <Kv
+                  label="Transaction Type Breakdown"
+                  value={claim.data?.transactionTypeBreakdown || "-"}
+                />
+                <Kv
+                  label="Transaction Drivers"
+                  value={claim.data?.transactionDrivers || "-"}
+                />
               </div>
             </div>
           )}
@@ -464,10 +492,16 @@ export default function ClaimDetailPage() {
 
           {tab === "CO2" && (
             <div className="grid grid-cols-2 gap-x-10 gap-y-3">
-              <Kv label="Co2e Start Position (kg)" value="-" />
-              <Kv label="Co2e End Position (kg)" value="-" />
-              <Kv label="Co2e Delta (kg)" value="-" />
-              <Kv label="Co2e Change Date" value="-" />
+              <Kv label="Co2e Start Position (kg)" value={claim.data?.co2Start || "-"} />
+              <Kv label="Co2e End Position (kg)" value={claim.data?.co2End || "-"} />
+              <Kv
+                label="Co2e Delta (kg)"
+                value={co2Delta(claim.data?.co2Start ?? "", claim.data?.co2End ?? "")}
+              />
+              <Kv
+                label="Co2e Change Date"
+                value={claim.data?.co2Change ? fmtDay(claim.data.co2Change) : "-"}
+              />
             </div>
           )}
 
@@ -478,16 +512,52 @@ export default function ClaimDetailPage() {
           )}
 
           {tab === "Parts" && (
-            <p className="text-xs text-neutral-500">
-              No part details captured for this claim yet. Use Bulk Upload
-              Parts to add them.
-            </p>
+            <>
+              {claim.data?.partDetails && claim.data.partDetails.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <Table className="text-xs">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Part</TableHead>
+                        <TableHead>Plant</TableHead>
+                        <TableHead>Current Price</TableHead>
+                        <TableHead>Currency</TableHead>
+                        <TableHead>New Price</TableHead>
+                        <TableHead>Runout</TableHead>
+                        <TableHead>ATP Reference</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {claim.data.partDetails.map((p, i) => (
+                        <TableRow key={`${p.part}-${p.plant}-${i}`}>
+                          <TableCell>{p.part || "—"}</TableCell>
+                          <TableCell>{p.plant || "—"}</TableCell>
+                          <TableCell>{p.currentPrice || "—"}</TableCell>
+                          <TableCell>{p.currentCurrency || "—"}</TableCell>
+                          <TableCell>{p.newPrice || "—"}</TableCell>
+                          <TableCell>{p.runout || "—"}</TableCell>
+                          <TableCell>{p.atpRef || "—"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <p className="text-xs text-neutral-500">
+                  No part details captured for this claim yet. Use Bulk Upload
+                  Parts to add them.
+                </p>
+              )}
+            </>
           )}
 
           {tab === "Finance" && (
             <div className="grid grid-cols-2 gap-x-10 gap-y-3">
-              <Kv label="Currency" value="USD" />
-              <Kv label="Budget Exchange Rate" value="1.27" />
+              <Kv label="Currency" value={claim.data?.vendorCurrency || "USD"} />
+              <Kv
+                label="Budget Exchange Rate"
+                value={claim.data?.budgetExchangeRate || "1.27"}
+              />
               <Kv label="Annual Forecast (£)" value={claim.reportingValue} />
               <Kv label="Calendarised Forecast (£)" value={claim.reportingValue} />
             </div>
@@ -618,7 +688,20 @@ export default function ClaimDetailPage() {
                     )}
                     {attachments.map((d) => (
                       <TableRow key={d.id}>
-                        <TableCell>{d.fileName}</TableCell>
+                        <TableCell>
+                          {d.url ? (
+                            <a
+                              href={d.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-emerald-700 underline"
+                            >
+                              {d.fileName}
+                            </a>
+                          ) : (
+                            d.fileName
+                          )}
+                        </TableCell>
                         <TableCell>{d.fileType}</TableCell>
                         <TableCell>{d.description}</TableCell>
                       </TableRow>

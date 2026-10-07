@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: neo-backend
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 30MB
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/neo?createDatabaseIfNotExist=true&nullDatabaseMeansCurrent=true}
     username: ${SPRING_DATASOURCE_USERNAME:root}

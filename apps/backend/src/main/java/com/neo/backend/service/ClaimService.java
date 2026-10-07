@@ -63,9 +63,6 @@ public class ClaimService {
     @Transactional
     public Claim update(String userId, String lineId, Map<String, Object> payload) {
         Claim claim = get(lineId);
-        if (!"Draft".equals(claim.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only draft claims can be edited");
-        }
         claim.setUpdatedBy(userId);
         applyPayload(claim, payload);
         return claims.save(claim);

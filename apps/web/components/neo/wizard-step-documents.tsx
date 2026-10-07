@@ -149,8 +149,11 @@ export function DocumentsStep() {
       name: f.name.slice(0, 255),
       type: "",
       description: "",
+      file: f,
     }))
-    setValue("docs", [...docs, ...next], { shouldValidate: true })
+    setValue("docs", [...docs, ...next] as unknown as WizardValues["docs"], {
+      shouldValidate: true,
+    })
     setFileError(null)
   }
 

@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { Suspense, useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { format } from "date-fns"
 import { FormProvider, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -14,6 +14,7 @@ import { DocumentsStep } from "@/components/neo/wizard-step-documents"
 import { Co2Step, LumpSumStep } from "@/components/neo/wizard-step-co2-lumpsum"
 import { PartsStep } from "@/components/neo/wizard-step-parts"
 import {
+  payloadToWizardForm,
   wizardSteps,
   type WizardStepKey,
 } from "@/lib/neo-wizard"
@@ -96,30 +97,81 @@ function toWizardDefaults(): WizardValues {
   }
 }
 
-function WizardTitle() {
+type PendingDoc = {
+  name: string
+  type: string
+  description: string
+  file: File
+}
+
+function serializeClaim<T>(values: T): string {
+  return JSON.stringify(values, (key, value) =>
+    key === "file" ? undefined : value
+  )
+}
+
+function pendingDocuments(values: WizardValues): PendingDoc[] {
+  const docs = (values.docs ?? []) as unknown as Array<{
+    name: string
+    type: string
+    description: string
+    file?: unknown
+  }>
+  return docs.filter((d): d is PendingDoc => d.file instanceof File)
+}
+
+function WizardTitle({ editing }: { editing: boolean }) {
   const claimType = useWatch<WizardValues>({ name: "claimType" }) as
     | string
     | undefined
-  const title = claimType
-    ? `Create New ${claimType}`
-    : "Create New Risk/Opportunity"
+  const subject = claimType ?? "Risk/Opportunity"
+  const title = editing ? `Update ${subject}` : `Create New ${subject}`
   return <h1 className="text-xl font-semibold text-neutral-900">{title}</h1>
 }
 
 function CreateClaimWizard() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const editingId = searchParams.get("claim")
+  const editing = Boolean(editingId)
   const { addClaim, nextLineId, refresh } = useNeoStore()
   const { request } = useApi()
   const [step, setStep] = useState<WizardStepKey>("core")
   const [saved, setSaved] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [loadingClaim, setLoadingClaim] = useState(editing)
 
   const methods = useForm<WizardValues>({
     resolver: zodResolver(wizardSchema) as never,
     defaultValues: toWizardDefaults(),
     mode: "onTouched",
   })
+
+  useEffect(() => {
+    if (!editingId) return
+    let cancelled = false
+    const load = async () => {
+      try {
+        const claim = await request<{ payload?: string }>(
+          `/api/claims/${encodeURIComponent(editingId)}`
+        )
+        if (cancelled) return
+        if (claim?.payload) {
+          const parsed = JSON.parse(claim.payload) as Record<string, unknown>
+          methods.reset(payloadToWizardForm(parsed))
+        }
+      } catch {
+        /* no stored payload: keep blank form */
+      } finally {
+        if (!cancelled) setLoadingClaim(false)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [editingId, request, methods])
 
   const idx = wizardSteps.findIndex((s) => s.key === step)
   const isFirst = idx === 0
@@ -198,8 +250,23 @@ function CreateClaimWizard() {
     pmName: "Purchasing Manager",
   })
 
+  const uploadPendingDocuments = async (lineId: string, docs: PendingDoc[]) => {
+    for (const doc of docs) {
+      const form = new FormData()
+      form.append("file", doc.file, doc.name)
+      form.append("fileType", doc.type || "Other")
+      form.append("description", doc.description || "")
+      await request(`/api/claims/${encodeURIComponent(lineId)}/attachments`, {
+        method: "POST",
+        body: form,
+      })
+    }
+  }
+
   const submit = async (asDraft: boolean) => {
     setSubmitError(null)
+    if (loadingClaim) return
+    const pending = pendingDocuments(methods.getValues())
     if (!asDraft) {
       const result = await wizardSchema.safeParseAsync(methods.getValues())
       if (!result.success) {
@@ -220,25 +287,47 @@ function CreateClaimWizard() {
       }
       setSubmitting(true)
       try {
-        const created = await request<{ lineId: string }>(`/api/claims`, {
-          method: "POST",
-          body: JSON.stringify(result.data),
-        })
-        await request(`/api/claims/${encodeURIComponent(created.lineId)}/submit`, {
+        let lineId = editingId
+        if (lineId) {
+          await request(`/api/claims/${encodeURIComponent(lineId)}`, {
+            method: "PUT",
+            body: serializeClaim(result.data),
+          })
+        } else {
+          const created = await request<{ lineId: string }>(`/api/claims`, {
+            method: "POST",
+            body: serializeClaim(result.data),
+          })
+          lineId = created.lineId
+        }
+        if (pending.length > 0) {
+          try {
+            await uploadPendingDocuments(lineId, pending)
+          } catch {
+            /* claim saved; documents can be re-added from the Attachments tab */
+          }
+        }
+        await request(`/api/claims/${encodeURIComponent(lineId)}/submit`, {
           method: "POST",
         })
         refresh()
-        router.push(`/claims/${encodeURIComponent(created.lineId)}`)
+        router.push(`/claims/${encodeURIComponent(lineId)}`)
       } catch (e) {
-        const row = buildRow(result.data, "Forecast")
-        addClaim(row)
-        refresh()
-        setSubmitError(
-          e instanceof Error
-            ? `Backend unavailable, saved locally: ${e.message}`
-            : "Backend unavailable, saved locally."
-        )
-        router.push(`/claims/${encodeURIComponent(row.lineId)}`)
+        if (editingId) {
+          setSubmitError(
+            e instanceof Error ? e.message : "Failed to update claim."
+          )
+        } else {
+          const row = buildRow(result.data, "Forecast")
+          addClaim(row)
+          refresh()
+          setSubmitError(
+            e instanceof Error
+              ? `Backend unavailable, saved locally: ${e.message}`
+              : "Backend unavailable, saved locally."
+          )
+          router.push(`/claims/${encodeURIComponent(row.lineId)}`)
+        }
       } finally {
         setSubmitting(false)
       }
@@ -247,17 +336,44 @@ function CreateClaimWizard() {
     const values = methods.getValues()
     setSubmitting(true)
     try {
-      const created = await request<{ lineId: string }>(`/api/claims`, {
-        method: "POST",
-        body: JSON.stringify(values),
-      })
-      refresh()
-      router.push(`/claims/${encodeURIComponent(created.lineId)}`)
+      if (editingId) {
+        await request(`/api/claims/${encodeURIComponent(editingId)}`, {
+          method: "PUT",
+          body: serializeClaim(values),
+        })
+        if (pending.length > 0) {
+          try {
+            await uploadPendingDocuments(editingId, pending)
+          } catch {
+            /* saved; documents can be re-added later */
+          }
+        }
+        refresh()
+        router.push(`/claims/${encodeURIComponent(editingId)}`)
+      } else {
+        const created = await request<{ lineId: string }>(`/api/claims`, {
+          method: "POST",
+          body: serializeClaim(values),
+        })
+        if (pending.length > 0) {
+          try {
+            await uploadPendingDocuments(created.lineId, pending)
+          } catch {
+            /* saved; documents can be re-added later */
+          }
+        }
+        refresh()
+        router.push(`/claims/${encodeURIComponent(created.lineId)}`)
+      }
     } catch {
-      const row = buildRow(values, "Draft")
-      addClaim(row)
-      refresh()
-      router.push(`/claims/${encodeURIComponent(row.lineId)}`)
+      if (editingId) {
+        setSubmitError("Failed to save changes.")
+      } else {
+        const row = buildRow(values, "Draft")
+        addClaim(row)
+        refresh()
+        router.push(`/claims/${encodeURIComponent(row.lineId)}`)
+      }
     } finally {
       setSubmitting(false)
     }
@@ -271,10 +387,11 @@ function CreateClaimWizard() {
         <main className="flex-1 px-6 py-4">
           <div className="flex min-h-[70vh] flex-col bg-white shadow-sm">
             <div className="border-b border-neutral-200 px-6 py-4">
-              <WizardTitle />
+              <WizardTitle editing={editing} />
               <p className="mt-0.5 text-xs text-neutral-500">
-                Enter all the details in order to create a new Risk or
-                Opportunity
+                {editing
+                  ? "Review and update the details of this Risk or Opportunity"
+                  : "Enter all the details in order to create a new Risk or Opportunity"}
               </p>
             </div>
 
@@ -315,6 +432,11 @@ function CreateClaimWizard() {
               {step === "lumpsum" && <LumpSumStep />}
               {step === "parts" && <PartsStep />}
 
+              {loadingClaim && (
+                <p className="mt-4 rounded bg-neutral-100 px-3 py-2 text-xs font-medium text-neutral-600">
+                  Loading claim…
+                </p>
+              )}
               {saved && (
                 <p className="mt-4 rounded bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">
                   {saved}
@@ -364,7 +486,7 @@ function CreateClaimWizard() {
                   size="sm"
                   className="bg-emerald-800 text-xs font-bold text-white hover:bg-emerald-700"
                   onClick={() => submit(false)}
-                  disabled={submitting}
+                  disabled={submitting || loadingClaim}
                 >
                   <Check className="size-3.5" />{" "}
                   {submitting ? "SUBMITTING…" : "SUBMIT"}
@@ -374,7 +496,7 @@ function CreateClaimWizard() {
                 variant="outline"
                 size="sm"
                 className="text-xs text-neutral-600"
-                disabled={submitting}
+                disabled={submitting || loadingClaim}
                 onClick={() => {
                   if (isLast) submit(true)
                   else {
@@ -397,5 +519,9 @@ function CreateClaimWizard() {
 }
 
 export default function CreateClaimPage() {
-  return <CreateClaimWizard />
+  return (
+    <Suspense fallback={<div className="min-h-svh bg-neutral-100" />}>
+      <CreateClaimWizard />
+    </Suspense>
+  )
 }
