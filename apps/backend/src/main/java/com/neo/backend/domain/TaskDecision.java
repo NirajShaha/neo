@@ -6,12 +6,12 @@ import jakarta.persistence.Table;
 
 /** One approval decision taken on a workflow task (claim or mandate). */
 @Entity
-@Table(name = "mci_task_decisions")
+@Table(name = "mci_task_decisions", uniqueConstraints = {
+        @jakarta.persistence.UniqueConstraint(name = "ux_task_decision_task", columnNames = "task_id")
+})
 public class TaskDecision extends BaseEntity {
 
-    @Column(name = "request_id")
     private String requestId = "";
-
     @Column(name = "task_id")
     private String taskId = "";
 

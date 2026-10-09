@@ -27,8 +27,7 @@ public class NotificationController {
     @GetMapping
     public Map<String, Object> list(Authentication authentication) {
         IdentityService.SessionUser user = identity.sessionFor(authentication.getName());
-        List<Notification> items = notifications.listForUser(user.id());
-        return Map.of("items", items, "unread", notifications.unreadCount(user.id()));
+        return Map.of("items", notifications.page(user.id(), 0, 50), "unread", notifications.unreadCount(user.id()));
     }
 
     @GetMapping("/unread-count")

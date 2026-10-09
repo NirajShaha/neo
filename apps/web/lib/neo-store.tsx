@@ -206,7 +206,9 @@ function parseClaimData(payload?: string): ClaimData | undefined {
   if (!payload) return undefined
   try {
     const parsed = JSON.parse(payload)
-    return parsed && typeof parsed === "object" ? (parsed as ClaimData) : undefined
+    return parsed && typeof parsed === "object"
+      ? (parsed as ClaimData)
+      : undefined
   } catch {
     return undefined
   }
@@ -289,7 +291,9 @@ const Ctx = createContext<Store | null>(null)
 export function NeoStoreProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const [backendClaims, setBackendClaims] = useState<ClaimRow[]>([])
-  const [pendingApprovals, setPendingApprovals] = useState<PendingApprovalItem[]>([])
+  const [pendingApprovals, setPendingApprovals] = useState<
+    PendingApprovalItem[]
+  >([])
   const [myApprovals, setMyApprovals] = useState<ApprovalDecisionRow[]>([])
   const [backendApprovals, setBackendApprovals] = useState<ApprovalRow[]>([])
   const [version, setVersion] = useState(0)
@@ -302,52 +306,65 @@ export function NeoStoreProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
-    const load = async () => {
+    const load = async (sections?: Set<string>) => {
       try {
-        const [claimsRes, pendingRes, decidedRes, approvalsRes, notificationsRes] =
-          await Promise.all([
-            fetch(backendPath("/claims")),
-            fetch(backendPath("/approvals/pending")),
-            fetch(backendPath("/approvals/decided")),
-            fetch(backendPath("/mandates/approvals/view")),
-            fetch(backendPath("/notifications")),
-          ])
-        if (claimsRes.status === 401) {
+        const response = await fetch(backendPath("/bootstrap"), {
+          cache: "no-store",
+        })
+        if (response.status === 401) {
           if (!cancelled) router.refresh()
           return
         }
-        if (claimsRes.ok) {
-          const rows = (await claimsRes.json()) as BackendClaim[]
-          if (!cancelled) setBackendClaims(rows.map(toClaimRow))
+        if (!response.ok) return
+        const body = (await response.json()) as {
+          claims: BackendClaim[]
+          pendingApprovals: PendingApprovalItem[]
+          decidedApprovals: ApprovalDecisionRow[]
+          mandateApprovals: BackendApproval[]
+          notifications: { items: NotificationItem[] } | NotificationItem[]
         }
-        if (pendingRes.ok) {
-          const rows = (await pendingRes.json()) as PendingApprovalItem[]
-          if (!cancelled) setPendingApprovals(rows ?? [])
+        const all = !sections || sections.has("all")
+        if (!cancelled && (all || sections?.has("claims")))
+          setBackendClaims((body.claims ?? []).map(toClaimRow))
+        if (!cancelled && (all || sections?.has("approvals"))) {
+          setPendingApprovals(body.pendingApprovals ?? [])
+          setMyApprovals(body.decidedApprovals ?? [])
+          setBackendApprovals((body.mandateApprovals ?? []).map(toApprovalRow))
         }
-        if (decidedRes.ok) {
-          const rows = (await decidedRes.json()) as ApprovalDecisionRow[]
-          if (!cancelled) setMyApprovals(rows ?? [])
-        }
-        if (approvalsRes.ok) {
-          const rows = (await approvalsRes.json()) as BackendApproval[]
-          if (!cancelled) setBackendApprovals(rows.map(toApprovalRow))
-        }
-        if (notificationsRes.ok) {
-          const body = (await notificationsRes.json()) as {
-            items: NotificationItem[]
-          }
-          if (!cancelled) setNotifications(body.items ?? [])
+        if (!cancelled && (all || sections?.has("notifications"))) {
+          const items = Array.isArray(body.notifications)
+            ? body.notifications
+            : body.notifications?.items
+          setNotifications(items ?? [])
         }
         if (!cancelled) setVersion((v) => v + 1)
       } catch {
-        /* backend unavailable: seed fallback stays */
+        /* Reconnect and the next workflow event will retry the targeted load. */
       }
     }
     load()
-    const timer = setInterval(load, 15000)
+    const seen = new Set<string>()
+    const source = new EventSource(backendPath("/events/stream"))
+    const refreshFor = (event: MessageEvent) => {
+      if (event.lastEventId && seen.has(event.lastEventId)) return
+      if (event.lastEventId) {
+        seen.add(event.lastEventId)
+        if (seen.size > 200) seen.delete(seen.values().next().value as string)
+      }
+      if (event.type === "notification")
+        load(new Set(["approvals", "claims", "notifications"]))
+      else if (event.type !== "connected")
+        load(new Set(["approvals", "claims"]))
+    }
+    source.addEventListener("notification", refreshFor)
+    source.addEventListener("workflow", refreshFor)
+    source.addEventListener("connected", refreshFor)
+    source.onerror = () => {
+      if (!cancelled) load(new Set(["approvals", "claims", "notifications"]))
+    }
     return () => {
       cancelled = true
-      clearInterval(timer)
+      source.close()
     }
   }, [tick, router])
 
