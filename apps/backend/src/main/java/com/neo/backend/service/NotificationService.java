@@ -2,10 +2,11 @@ package com.neo.backend.service;
 
 import com.neo.backend.domain.Notification;
 import com.neo.backend.repo.NotificationRepository;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,10 +15,15 @@ public class NotificationService {
 
     private final NotificationRepository notifications;
     private final IdentityService identity;
+    private final UserEventService events;
+    private final NotificationInsertService inserter;
 
-    public NotificationService(NotificationRepository notifications, IdentityService identity) {
+    public NotificationService(NotificationRepository notifications, IdentityService identity,
+            UserEventService events, NotificationInsertService inserter) {
         this.notifications = notifications;
         this.identity = identity;
+        this.events = events;
+        this.inserter = inserter;
     }
 
     @Transactional
@@ -30,15 +36,7 @@ public class NotificationService {
         if (recipients.isEmpty()) {
             return;
         }
-        List<String> ids = new ArrayList<>(recipients);
-        Set<String> already = new HashSet<>();
-        notifications.findByRefIdAndTypeAndUserIdIn(refId, type, ids)
-                .forEach(n -> already.add(n.getUserId()));
-        List<Notification> fresh = new ArrayList<>();
-        for (String userId : ids) {
-            if (already.contains(userId)) {
-                continue;
-            }
+        for (String userId : recipients) {
             Notification notification = new Notification();
             notification.setUserId(userId);
             notification.setType(type);
@@ -46,16 +44,21 @@ public class NotificationService {
             notification.setBody(body == null ? "" : body);
             notification.setRefType(refType);
             notification.setRefId(refId);
-            fresh.add(notification);
-        }
-        if (!fresh.isEmpty()) {
-            notifications.saveAll(fresh);
+            String dedupeKey = String.join("|", userId, type, refType == null ? "" : refType,
+                    refId == null ? "" : refId);
+            notification.setDedupeKey(dedupeKey);
+            if (notifications.existsByDedupeKey(dedupeKey))
+                continue;
+            if (inserter.insert(notification)) {
+                events.publishAfterCommit(userId, "notification");
+            }
         }
     }
 
-    public List<Notification> listForUser(String userId) {
-        List<Notification> all = notifications.findByUserIdOrderByCreatedOnDesc(userId);
-        return all.size() > 50 ? all.subList(0, 50) : all;
+    public List<Notification> page(String userId, int page, int size) {
+        int boundedSize = Math.max(1, Math.min(size, 100));
+        return notifications.findByUserIdOrderByCreatedOnDesc(userId,
+                PageRequest.of(Math.max(0, page), boundedSize, Sort.by(Sort.Direction.DESC, "createdOn"))).getContent();
     }
 
     public long unreadCount(String userId) {
@@ -74,8 +77,6 @@ public class NotificationService {
 
     @Transactional
     public void markAllRead(String userId) {
-        notifications.findByUserIdOrderByCreatedOnDesc(userId).stream()
-                .filter(n -> !n.isRead())
-                .forEach(n -> n.setRead(true));
+        notifications.markAllRead(userId);
     }
 }

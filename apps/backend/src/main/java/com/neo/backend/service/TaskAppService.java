@@ -13,6 +13,7 @@ import com.neo.backend.workflow.WorkflowFacade;
 import com.neo.backend.workflow.dto.ClaimDecisionView;
 import com.neo.backend.workflow.dto.ClaimTaskView;
 import com.neo.backend.workflow.dto.CompleteTaskRequest;
+import com.neo.backend.workflow.dto.ApprovalDecisionRequest;
 import com.neo.backend.workflow.dto.ProcessInstanceResponse;
 import com.neo.backend.workflow.dto.TaskResponse;
 import java.util.ArrayList;
@@ -22,8 +23,10 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
+import org.flowable.common.engine.api.FlowableObjectNotFoundException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
@@ -37,6 +40,7 @@ public class TaskAppService {
     private final ClaimService claimService;
     private final MandateService mandateService;
     private final ActivityService activity;
+    private final UserEventService events;
 
     public TaskAppService(
             WorkflowFacade workflow,
@@ -46,7 +50,8 @@ public class TaskAppService {
             AppUserRepository users,
             ClaimService claimService,
             MandateService mandateService,
-            ActivityService activity) {
+            ActivityService activity,
+            UserEventService events) {
         this.workflow = workflow;
         this.claims = claims;
         this.mandates = mandates;
@@ -55,6 +60,7 @@ public class TaskAppService {
         this.claimService = claimService;
         this.mandateService = mandateService;
         this.activity = activity;
+        this.events = events;
     }
 
     public List<TaskResponse> listForUser(SessionUser user) {
@@ -76,27 +82,36 @@ public class TaskAppService {
         return task;
     }
 
-    public ProcessInstanceResponse complete(SessionUser user, String taskId, Map<String, Object> variables) {
+    @Transactional
+    public ProcessInstanceResponse complete(SessionUser user, String taskId, ApprovalDecisionRequest request) {
         TaskResponse task = workflow.getTask(taskId);
         assertCanAct(user, task);
-        Map<String, Object> input = variables == null ? Map.of() : variables;
-        boolean approved = !"REJECTED".equals(String.valueOf(input.getOrDefault("decision", "APPROVED")));
-        Map<String, Object> engineVars = new HashMap<>(input);
+        String decisionValue = request.decision() == null ? "" : request.decision().trim().toUpperCase();
+        if (!decisionValue.equals("APPROVED") && !decisionValue.equals("REJECTED")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "decision must be APPROVED or REJECTED");
+        }
+        boolean approved = decisionValue.equals("APPROVED");
+        Map<String, Object> engineVars = new HashMap<>();
         engineVars.put("approved", approved);
         engineVars.put("decidedBy", user.id());
-        if (!engineVars.containsKey("comment")) {
-            engineVars.put("comment", null);
+        engineVars.put("comment", request.comment() == null ? null : request.comment().trim());
+        ProcessInstanceResponse instance;
+        try {
+            instance = workflow.complete(taskId, new CompleteTaskRequest(user.id(), engineVars));
+        } catch (FlowableObjectNotFoundException exception) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Task was already completed");
         }
-        ProcessInstanceResponse instance = workflow.complete(taskId, new CompleteTaskRequest(user.id(), engineVars));
         String businessKey = task.businessKey();
         if (businessKey != null) {
             claims.findByLineId(businessKey).ifPresent(claim -> {
                 claimService.applyInstance(claim, instance);
                 claims.save(claim);
+                events.publishAfterCommit(claim.getCreatedBy(), "workflow");
             });
             mandates.findByNumber(businessKey).ifPresent(mandate -> {
                 mandateService.applyInstance(mandate, instance);
                 mandates.save(mandate);
+                events.publishAfterCommit(mandate.getCreatedBy(), "workflow");
             });
         }
         if (businessKey != null) {
@@ -106,7 +121,7 @@ public class TaskAppService {
             decision.setTaskKey(task.taskDefinitionKey());
             decision.setTaskName(task.name());
             decision.setDecision(approved ? "APPROVED" : "REJECTED");
-            decision.setComment(input.get("comment") == null ? "" : String.valueOf(input.get("comment")));
+            decision.setComment(request.comment() == null ? "" : request.comment().trim());
             decision.setActorId(user.id());
             decisions.save(decision);
         }
@@ -117,10 +132,14 @@ public class TaskAppService {
                 businessKey == null ? taskId : businessKey,
                 user.id(),
                 "{}");
+        events.publishAfterCommit(user.id(), "workflow");
         return instance;
     }
 
-    /** Every workflow task of a claim (open and completed) with the decision taken, if any. */
+    /**
+     * Every workflow task of a claim (open and completed) with the decision taken,
+     * if any.
+     */
     public List<ClaimTaskView> claimTasks(String lineId) {
         Claim claim = claims.findByLineId(lineId).orElse(null);
         if (claim == null || claim.getWorkflowInstanceId() == null) {
@@ -174,8 +193,7 @@ public class TaskAppService {
         boolean assignee = task.assignee() != null && task.assignee().equals(user.id());
         boolean candidate = task.candidateGroups() != null
                 && task.candidateGroups().stream().anyMatch(user.groups()::contains);
-        boolean readAll = user.permissions().contains("claim:read:all");
-        if (!assignee && !candidate && !readAll) {
+        if (!assignee && !candidate) {
             throw new AccessDeniedException("You are not allowed to act on this task");
         }
     }

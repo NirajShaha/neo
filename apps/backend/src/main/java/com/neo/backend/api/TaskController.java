@@ -3,10 +3,11 @@ package com.neo.backend.api;
 import com.neo.backend.service.IdentityService;
 import com.neo.backend.service.TaskAppService;
 import com.neo.backend.workflow.dto.ClaimTaskRequest;
+import com.neo.backend.workflow.dto.ApprovalDecisionRequest;
 import com.neo.backend.workflow.dto.ProcessInstanceResponse;
 import com.neo.backend.workflow.dto.TaskResponse;
 import java.util.List;
-import java.util.Map;
+import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -41,9 +42,9 @@ public class TaskController {
     public ProcessInstanceResponse complete(
             Authentication authentication,
             @PathVariable String taskId,
-            @RequestBody(required = false) Map<String, Object> variables) {
+            @Valid @RequestBody ApprovalDecisionRequest request) {
         return tasks.complete(
-                identity.sessionFor(authentication.getName()), taskId, variables == null ? Map.of() : variables);
+                identity.sessionFor(authentication.getName()), taskId, request);
     }
 
     @PostMapping("/{taskId}/claim")
