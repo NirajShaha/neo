@@ -5,6 +5,7 @@ import com.neo.backend.config.NeoProperties;
 import com.neo.backend.domain.Claim;
 import com.neo.backend.repo.ClaimRepository;
 import com.neo.backend.workflow.WorkflowFacade;
+import com.neo.backend.workflow.WorkflowProcessRegistry;
 import com.neo.backend.workflow.dto.ProcessInstanceResponse;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -22,6 +23,7 @@ public class ClaimService {
     private final WorkflowFacade workflow;
     private final ActivityService activity;
     private final NeoProperties properties;
+    private final WorkflowProcessRegistry processRegistry;
     private final ObjectMapper mapper;
 
     public ClaimService(
@@ -29,12 +31,14 @@ public class ClaimService {
             WorkflowFacade workflow,
             ActivityService activity,
             NeoProperties properties,
-            ObjectMapper mapper) {
+            ObjectMapper mapper,
+            WorkflowProcessRegistry processRegistry) {
         this.claims = claims;
         this.workflow = workflow;
         this.activity = activity;
         this.properties = properties;
         this.mapper = mapper;
+        this.processRegistry = processRegistry;
     }
 
     public List<Claim> list(Map<String, String> filters) {
@@ -92,11 +96,16 @@ public class ClaimService {
         variables.put("managerReminderDuration", properties.managerReminderDuration());
         variables.put("managerEscalationDuration", properties.managerEscalationDuration());
 
+        String processKey = processRegistry.claimProcessKey();
+        if (processKey == null || processKey.isBlank()) {
+            throw new IllegalStateException(
+                    "No claim BPMN process is loaded. Enable workflow Git synchronization and publish a BPMN file first.");
+        }
         ProcessInstanceResponse instance = workflow.start(
-                new com.neo.backend.workflow.dto.StartProcessRequest("claimLifecycle", lineId, variables));
+                new com.neo.backend.workflow.dto.StartProcessRequest(processKey, lineId, variables));
         applyInstance(claim, instance);
         claims.save(claim);
-        activity.record("WORKFLOW_STARTED", "claimLifecycle", "Claim", lineId, userId, "{}");
+        activity.record("WORKFLOW_STARTED", processKey, "Claim", lineId, userId, "{}");
         return claim;
     }
 

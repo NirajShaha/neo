@@ -22,6 +22,9 @@ class ClaimLifecycleTest {
     @Autowired
     private TaskService taskService;
 
+    @Autowired
+    private WorkflowProcessRegistry processRegistry;
+
     private ProcessInstanceResponse startClaim(String businessKey, double totalAmount) {
         Map<String, Object> variables = new HashMap<>();
         variables.put("requestId", businessKey);
@@ -35,7 +38,8 @@ class ClaimLifecycleTest {
         variables.put("hasDocuments", false);
         variables.put("managerReminderDuration", "PT4S");
         variables.put("managerEscalationDuration", "PT9S");
-        return facade.start(new StartProcessRequest("claimLifecycle", businessKey, variables));
+        return facade.start(new StartProcessRequest(
+                processRegistry.claimProcessKey(), businessKey, variables));
     }
 
     private Task singleTask(String processInstanceId) {
@@ -81,8 +85,8 @@ class ClaimLifecycleTest {
         Map<String, Object> reject = new HashMap<>();
         reject.put("approved", false);
         reject.put("decision", "REJECTED");
-        ProcessInstanceResponse rejected =
-                facade.complete(financeTask.getId(), new CompleteTaskRequest("finance1", reject));
+        ProcessInstanceResponse rejected = facade.complete(financeTask.getId(),
+                new CompleteTaskRequest("finance1", reject));
         assertThat(rejected.ended()).isTrue();
     }
 

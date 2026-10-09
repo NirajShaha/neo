@@ -1,0 +1,395 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:flowable="http://flowable.org/bpmn" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC" xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI" xmlns:design="http://flowable.org/design" typeLanguage="http://www.w3.org/2001/XMLSchema" expressionLanguage="http://www.w3.org/1999/XPath" targetNamespace="http://neo.com/workflow" exporter="Flowable Design" exporterVersion="2026.1.1" design:palette="flowable-work-process-palette">
+  <process id="claimLifecycleV2" name="Claim Lifecycle" isExecutable="true">
+    <extensionElements>
+      <flowable:candidates-type><![CDATA[all]]></flowable:candidates-type>
+      <design:stencilid><![CDATA[BPMNDiagram]]></design:stencilid>
+      <design:creationdate><![CDATA[2026-10-07T14:37:52.579Z]]></design:creationdate>
+      <design:modificationdate><![CDATA[2026-10-07T14:38:22.438Z]]></design:modificationdate>
+    </extensionElements>
+    <serviceTask id="recordSubmission" name="Record submission" flowable:expression="#{domainEvents.handle(execution, 'SUBMITTED')}">
+      <extensionElements>
+        <design:stencilid><![CDATA[ServiceTask]]></design:stencilid>
+        <design:stencilsuperid><![CDATA[Task]]></design:stencilsuperid>
+      </extensionElements>
+    </serviceTask>
+    <serviceTask id="notifyManager" name="Notify manager" flowable:expression="#{domainEvents.handle(execution, 'MANAGER_APPROVAL_REQUESTED')}">
+      <extensionElements>
+        <design:stencilid><![CDATA[ServiceTask]]></design:stencilid>
+        <design:stencilsuperid><![CDATA[Task]]></design:stencilsuperid>
+      </extensionElements>
+    </serviceTask>
+    <userTask id="managerApproval" name="Manager approval" flowable:candidateGroups="${supervisorGroup}" flowable:dueDate="${managerReminderDuration}" flowable:formKey="managerApproval" flowable:formFieldValidation="false">
+      <extensionElements>
+        <flowable:task-candidates-type><![CDATA[all]]></flowable:task-candidates-type>
+        <design:stencilid><![CDATA[FormTask]]></design:stencilid>
+        <design:stencilsuperid><![CDATA[Task]]></design:stencilsuperid>
+      </extensionElements>
+    </userTask>
+    <serviceTask id="remindManager" name="Send reminder" flowable:expression="#{domainEvents.handle(execution, 'MANAGER_REMINDER')}">
+      <extensionElements>
+        <design:stencilid><![CDATA[ServiceTask]]></design:stencilid>
+        <design:stencilsuperid><![CDATA[Task]]></design:stencilsuperid>
+      </extensionElements>
+    </serviceTask>
+    <serviceTask id="escalateManager" name="Escalate to management" flowable:expression="#{domainEvents.handle(execution, 'MANAGER_ESCALATION')}">
+      <extensionElements>
+        <design:stencilid><![CDATA[ServiceTask]]></design:stencilid>
+        <design:stencilsuperid><![CDATA[Task]]></design:stencilsuperid>
+      </extensionElements>
+    </serviceTask>
+    <serviceTask id="finalizeRequest" name="Finalize claim" flowable:expression="#{domainEvents.finalizeRequest(execution)}">
+      <extensionElements>
+        <design:stencilid><![CDATA[ServiceTask]]></design:stencilid>
+        <design:stencilsuperid><![CDATA[Task]]></design:stencilsuperid>
+      </extensionElements>
+    </serviceTask>
+    <serviceTask id="confirmBooking" name="Confirm implementation" flowable:expression="#{domainEvents.confirmBooking(execution)}">
+      <extensionElements>
+        <design:stencilid><![CDATA[ServiceTask]]></design:stencilid>
+        <design:stencilsuperid><![CDATA[Task]]></design:stencilsuperid>
+      </extensionElements>
+    </serviceTask>
+    <serviceTask id="notifyOutcome" name="Notify approval" flowable:expression="#{domainEvents.handle(execution, 'FINAL_OUTCOME')}">
+      <extensionElements>
+        <design:stencilid><![CDATA[ServiceTask]]></design:stencilid>
+        <design:stencilsuperid><![CDATA[Task]]></design:stencilsuperid>
+      </extensionElements>
+    </serviceTask>
+    <serviceTask id="notifyRejected" name="Notify rejection" flowable:expression="#{domainEvents.handle(execution, 'FINAL_OUTCOME')}">
+      <extensionElements>
+        <design:stencilid><![CDATA[ServiceTask]]></design:stencilid>
+        <design:stencilsuperid><![CDATA[Task]]></design:stencilsuperid>
+      </extensionElements>
+    </serviceTask>
+    <exclusiveGateway id="hasDocumentsGateway" name="Documents attached?" default="flow-no-documents">
+      <extensionElements>
+        <design:stencilid><![CDATA[Exclusive_Databased_Gateway]]></design:stencilid>
+        <design:display_ref_in_diagram><![CDATA[true]]></design:display_ref_in_diagram>
+      </extensionElements>
+    </exclusiveGateway>
+    <exclusiveGateway id="managerDecisionGateway" name="Manager decision" default="flow-manager-not-approved">
+      <extensionElements>
+        <design:stencilid><![CDATA[Exclusive_Databased_Gateway]]></design:stencilid>
+        <design:display_ref_in_diagram><![CDATA[true]]></design:display_ref_in_diagram>
+      </extensionElements>
+    </exclusiveGateway>
+    <exclusiveGateway id="outcomeGateway" name="Outcome" default="flow-outcome-rejected">
+      <extensionElements>
+        <design:stencilid><![CDATA[Exclusive_Databased_Gateway]]></design:stencilid>
+        <design:display_ref_in_diagram><![CDATA[true]]></design:display_ref_in_diagram>
+      </extensionElements>
+    </exclusiveGateway>
+    <startEvent id="start" name="Claim submitted" flowable:formFieldValidation="false">
+      <extensionElements>
+        <flowable:work-form-field-validation><![CDATA[false]]></flowable:work-form-field-validation>
+        <design:stencilid><![CDATA[StartNoneEvent]]></design:stencilid>
+        <design:display_ref_in_diagram><![CDATA[true]]></design:display_ref_in_diagram>
+      </extensionElements>
+    </startEvent>
+    <endEvent id="completed" name="Approved">
+      <extensionElements>
+        <design:stencilid><![CDATA[EndNoneEvent]]></design:stencilid>
+        <design:display_ref_in_diagram><![CDATA[true]]></design:display_ref_in_diagram>
+      </extensionElements>
+    </endEvent>
+    <endEvent id="rejected" name="Rejected">
+      <extensionElements>
+        <design:stencilid><![CDATA[EndNoneEvent]]></design:stencilid>
+        <design:display_ref_in_diagram><![CDATA[true]]></design:display_ref_in_diagram>
+      </extensionElements>
+    </endEvent>
+    <endEvent id="reminderSent" name="Reminder sent">
+      <extensionElements>
+        <design:stencilid><![CDATA[EndNoneEvent]]></design:stencilid>
+        <design:display_ref_in_diagram><![CDATA[true]]></design:display_ref_in_diagram>
+      </extensionElements>
+    </endEvent>
+    <sequenceFlow id="flow-recorded" sourceRef="recordSubmission" targetRef="hasDocumentsGateway">
+      <extensionElements>
+        <design:stencilid><![CDATA[SequenceFlow]]></design:stencilid>
+      </extensionElements>
+    </sequenceFlow>
+    <sequenceFlow id="flow-notified-manager" sourceRef="notifyManager" targetRef="managerApproval">
+      <extensionElements>
+        <design:stencilid><![CDATA[SequenceFlow]]></design:stencilid>
+      </extensionElements>
+    </sequenceFlow>
+    <boundaryEvent id="managerReminderTimer" name="Reminder" attachedToRef="managerApproval" cancelActivity="false">
+      <extensionElements>
+        <design:stencilid><![CDATA[IntermediateTimerEventBoundary]]></design:stencilid>
+        <design:display_ref_in_diagram><![CDATA[true]]></design:display_ref_in_diagram>
+      </extensionElements>
+      <timerEventDefinition>
+        <timeDuration>${managerReminderDuration}</timeDuration>
+      </timerEventDefinition>
+    </boundaryEvent>
+    <sequenceFlow id="flow-reminder" sourceRef="managerReminderTimer" targetRef="remindManager">
+      <extensionElements>
+        <design:stencilid><![CDATA[SequenceFlow]]></design:stencilid>
+      </extensionElements>
+    </sequenceFlow>
+    <boundaryEvent id="managerEscalationTimer" name="Escalation" attachedToRef="managerApproval" cancelActivity="true">
+      <extensionElements>
+        <design:stencilid><![CDATA[IntermediateTimerEventBoundary]]></design:stencilid>
+        <design:display_ref_in_diagram><![CDATA[true]]></design:display_ref_in_diagram>
+      </extensionElements>
+      <timerEventDefinition>
+        <timeDuration>${managerEscalationDuration}</timeDuration>
+      </timerEventDefinition>
+    </boundaryEvent>
+    <sequenceFlow id="flow-escalation" sourceRef="managerEscalationTimer" targetRef="escalateManager">
+      <extensionElements>
+        <design:stencilid><![CDATA[SequenceFlow]]></design:stencilid>
+      </extensionElements>
+    </sequenceFlow>
+    <sequenceFlow id="flow-manager-decided" sourceRef="managerApproval" targetRef="managerDecisionGateway">
+      <extensionElements>
+        <design:stencilid><![CDATA[SequenceFlow]]></design:stencilid>
+      </extensionElements>
+    </sequenceFlow>
+    <sequenceFlow id="flow-reminder-end" sourceRef="remindManager" targetRef="reminderSent">
+      <extensionElements>
+        <design:stencilid><![CDATA[SequenceFlow]]></design:stencilid>
+      </extensionElements>
+    </sequenceFlow>
+    <sequenceFlow id="flow-escalated" sourceRef="escalateManager" targetRef="finalizeRequest">
+      <extensionElements>
+        <design:stencilid><![CDATA[SequenceFlow]]></design:stencilid>
+      </extensionElements>
+    </sequenceFlow>
+    <sequenceFlow id="flow-finalized" sourceRef="finalizeRequest" targetRef="outcomeGateway">
+      <extensionElements>
+        <design:stencilid><![CDATA[SequenceFlow]]></design:stencilid>
+      </extensionElements>
+    </sequenceFlow>
+    <sequenceFlow id="flow-booking-confirmed" sourceRef="confirmBooking" targetRef="notifyOutcome">
+      <extensionElements>
+        <design:stencilid><![CDATA[SequenceFlow]]></design:stencilid>
+      </extensionElements>
+    </sequenceFlow>
+    <sequenceFlow id="flow-approved-end" sourceRef="notifyOutcome" targetRef="completed">
+      <extensionElements>
+        <design:stencilid><![CDATA[SequenceFlow]]></design:stencilid>
+      </extensionElements>
+    </sequenceFlow>
+    <sequenceFlow id="flow-rejected-end" sourceRef="notifyRejected" targetRef="rejected">
+      <extensionElements>
+        <design:stencilid><![CDATA[SequenceFlow]]></design:stencilid>
+      </extensionElements>
+    </sequenceFlow>
+    <sequenceFlow id="flow-has-documents" sourceRef="hasDocumentsGateway" targetRef="notifyManager">
+      <extensionElements>
+        <design:stencilid><![CDATA[SequenceFlow]]></design:stencilid>
+      </extensionElements>
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${execution.getVariable('hasDocuments') == true}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow-no-documents" sourceRef="hasDocumentsGateway" targetRef="notifyManager">
+      <extensionElements>
+        <flowable:is-default-flow><![CDATA[true]]></flowable:is-default-flow>
+        <design:stencilid><![CDATA[SequenceFlow]]></design:stencilid>
+      </extensionElements>
+    </sequenceFlow>
+    <sequenceFlow id="flow-manager-not-approved" sourceRef="managerDecisionGateway" targetRef="finalizeRequest">
+      <extensionElements>
+        <flowable:is-default-flow><![CDATA[true]]></flowable:is-default-flow>
+        <design:stencilid><![CDATA[SequenceFlow]]></design:stencilid>
+      </extensionElements>
+    </sequenceFlow>
+    <sequenceFlow id="flow-outcome-approved" sourceRef="outcomeGateway" targetRef="confirmBooking">
+      <extensionElements>
+        <design:stencilid><![CDATA[SequenceFlow]]></design:stencilid>
+      </extensionElements>
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${execution.getVariable('approved') == true}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow-outcome-rejected" sourceRef="outcomeGateway" targetRef="notifyRejected">
+      <extensionElements>
+        <flowable:is-default-flow><![CDATA[true]]></flowable:is-default-flow>
+        <design:stencilid><![CDATA[SequenceFlow]]></design:stencilid>
+      </extensionElements>
+    </sequenceFlow>
+    <sequenceFlow id="flow-start" sourceRef="start" targetRef="recordSubmission">
+      <extensionElements>
+        <design:stencilid><![CDATA[SequenceFlow]]></design:stencilid>
+      </extensionElements>
+    </sequenceFlow>
+  </process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_claimLifecycleV2">
+    <bpmndi:BPMNPlane bpmnElement="claimLifecycleV2" id="BPMNPlane_claimLifecycleV2">
+      <bpmndi:BPMNShape bpmnElement="recordSubmission" id="BPMNShape_recordSubmission">
+        <omgdc:Bounds height="60.0" width="100.0" x="80.0" y="300.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="notifyManager" id="BPMNShape_notifyManager">
+        <omgdc:Bounds height="60.0" width="100.0" x="320.0" y="295.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="managerApproval" id="BPMNShape_managerApproval">
+        <omgdc:Bounds height="60.0" width="100.0" x="470.0" y="292.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="remindManager" id="BPMNShape_remindManager">
+        <omgdc:Bounds height="60.0" width="100.0" x="0.0" y="0.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="escalateManager" id="BPMNShape_escalateManager">
+        <omgdc:Bounds height="60.0" width="100.0" x="1100.0" y="480.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="finalizeRequest" id="BPMNShape_finalizeRequest">
+        <omgdc:Bounds height="60.0" width="100.0" x="1250.0" y="288.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="confirmBooking" id="BPMNShape_confirmBooking">
+        <omgdc:Bounds height="60.0" width="100.0" x="1490.0" y="380.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="notifyOutcome" id="BPMNShape_notifyOutcome">
+        <omgdc:Bounds height="60.0" width="100.0" x="1640.0" y="378.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="notifyRejected" id="BPMNShape_notifyRejected">
+        <omgdc:Bounds height="60.0" width="100.0" x="1490.0" y="220.0"></omgdc:Bounds>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="hasDocumentsGateway" id="BPMNShape_hasDocumentsGateway">
+        <omgdc:Bounds height="40.0" width="40.0" x="230.0" y="308.0"></omgdc:Bounds>
+        <bpmndi:BPMNLabel>
+          <omgdc:Bounds height="18.0" width="121.0" x="189.5" y="352.0"></omgdc:Bounds>
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="managerDecisionGateway" id="BPMNShape_managerDecisionGateway">
+        <omgdc:Bounds height="40.0" width="40.0" x="620.0" y="298.0"></omgdc:Bounds>
+        <bpmndi:BPMNLabel>
+          <omgdc:Bounds height="18.0" width="97.0" x="591.5" y="276.0"></omgdc:Bounds>
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="outcomeGateway" id="BPMNShape_outcomeGateway">
+        <omgdc:Bounds height="40.0" width="40.0" x="1400.0" y="306.0"></omgdc:Bounds>
+        <bpmndi:BPMNLabel>
+          <omgdc:Bounds height="18.0" width="50.0" x="1395.0" y="350.0"></omgdc:Bounds>
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="start" id="BPMNShape_start">
+        <omgdc:Bounds height="30.0" width="30.0" x="0.0" y="315.0"></omgdc:Bounds>
+        <bpmndi:BPMNLabel>
+          <omgdc:Bounds height="18.0" width="89.0" x="-29.5" y="349.0"></omgdc:Bounds>
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="completed" id="BPMNShape_completed">
+        <omgdc:Bounds height="28.0" width="28.0" x="1791.0" y="394.0"></omgdc:Bounds>
+        <bpmndi:BPMNLabel>
+          <omgdc:Bounds height="18.0" width="52.0" x="1779.0" y="426.0"></omgdc:Bounds>
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="rejected" id="BPMNShape_rejected">
+        <omgdc:Bounds height="28.0" width="28.0" x="1676.0" y="236.0"></omgdc:Bounds>
+        <bpmndi:BPMNLabel>
+          <omgdc:Bounds height="18.0" width="49.0" x="1665.5" y="268.0"></omgdc:Bounds>
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="reminderSent" id="BPMNShape_reminderSent">
+        <omgdc:Bounds height="28.0" width="28.0" x="151.0" y="16.0"></omgdc:Bounds>
+        <bpmndi:BPMNLabel>
+          <omgdc:Bounds height="18.0" width="80.0" x="125.0" y="48.0"></omgdc:Bounds>
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="managerReminderTimer" id="BPMNShape_managerReminderTimer">
+        <omgdc:Bounds height="30.0" width="30.0" x="535.0" y="337.0"></omgdc:Bounds>
+        <bpmndi:BPMNLabel>
+          <omgdc:Bounds height="18.0" width="53.0" x="523.5" y="315.0"></omgdc:Bounds>
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape bpmnElement="managerEscalationTimer" id="BPMNShape_managerEscalationTimer">
+        <omgdc:Bounds height="30.0" width="30.0" x="535.0" y="337.0"></omgdc:Bounds>
+        <bpmndi:BPMNLabel>
+          <omgdc:Bounds height="18.0" width="57.0" x="521.5" y="315.0"></omgdc:Bounds>
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge bpmnElement="flow-reminder" id="BPMNEdge_flow-reminder" flowable:sourceDockerX="15.0" flowable:sourceDockerY="15.0" flowable:targetDockerX="50.0" flowable:targetDockerY="30.0">
+        <omgdi:waypoint x="550.0" y="367.0"></omgdi:waypoint>
+        <omgdi:waypoint x="550.0" y="377.0"></omgdi:waypoint>
+        <omgdi:waypoint x="50.0" y="377.0"></omgdi:waypoint>
+        <omgdi:waypoint x="50.0" y="198.5"></omgdi:waypoint>
+        <omgdi:waypoint x="50.0" y="60.0"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow-escalation" id="BPMNEdge_flow-escalation" flowable:sourceDockerX="15.0" flowable:sourceDockerY="15.0" flowable:targetDockerX="50.0" flowable:targetDockerY="30.0">
+        <omgdi:waypoint x="550.0" y="367.0"></omgdi:waypoint>
+        <omgdi:waypoint x="550.0" y="550.0"></omgdi:waypoint>
+        <omgdi:waypoint x="1150.0" y="550.0"></omgdi:waypoint>
+        <omgdi:waypoint x="1150.0" y="540.0"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow-outcome-rejected" id="BPMNEdge_flow-outcome-rejected" flowable:sourceDockerX="20.0" flowable:sourceDockerY="20.0" flowable:targetDockerX="50.0" flowable:targetDockerY="30.0">
+        <omgdi:waypoint x="1440.0" y="326.0"></omgdi:waypoint>
+        <omgdi:waypoint x="1452.0" y="326.0"></omgdi:waypoint>
+        <omgdi:waypoint x="1452.0" y="250.0"></omgdi:waypoint>
+        <omgdi:waypoint x="1490.0" y="250.0"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow-approved-end" id="BPMNEdge_flow-approved-end" flowable:sourceDockerX="50.0" flowable:sourceDockerY="30.0" flowable:targetDockerX="14.0" flowable:targetDockerY="14.0">
+        <omgdi:waypoint x="1740.0" y="408.0"></omgdi:waypoint>
+        <omgdi:waypoint x="1791.0" y="408.0"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow-manager-not-approved" id="BPMNEdge_flow-manager-not-approved" flowable:sourceDockerX="20.0" flowable:sourceDockerY="20.0" flowable:targetDockerX="50.0" flowable:targetDockerY="30.0">
+        <omgdi:waypoint x="660.0" y="318.0"></omgdi:waypoint>
+        <omgdi:waypoint x="1250.0" y="318.0"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow-escalated" id="BPMNEdge_flow-escalated" flowable:sourceDockerX="50.0" flowable:sourceDockerY="30.0" flowable:targetDockerX="50.0" flowable:targetDockerY="30.0">
+        <omgdi:waypoint x="1200.0" y="510.0"></omgdi:waypoint>
+        <omgdi:waypoint x="1212.0" y="510.0"></omgdi:waypoint>
+        <omgdi:waypoint x="1212.0" y="318.0"></omgdi:waypoint>
+        <omgdi:waypoint x="1250.0" y="318.0"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow-no-documents" id="BPMNEdge_flow-no-documents" flowable:sourceDockerX="20.0" flowable:sourceDockerY="20.0" flowable:targetDockerX="50.0" flowable:targetDockerY="30.0">
+        <omgdi:waypoint x="270.0" y="328.0"></omgdi:waypoint>
+        <omgdi:waypoint x="282.0" y="328.0"></omgdi:waypoint>
+        <omgdi:waypoint x="282.0" y="325.0"></omgdi:waypoint>
+        <omgdi:waypoint x="320.0" y="325.0"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow-notified-manager" id="BPMNEdge_flow-notified-manager" flowable:sourceDockerX="50.0" flowable:sourceDockerY="30.0" flowable:targetDockerX="50.0" flowable:targetDockerY="30.0">
+        <omgdi:waypoint x="420.0" y="325.0"></omgdi:waypoint>
+        <omgdi:waypoint x="432.0" y="325.0"></omgdi:waypoint>
+        <omgdi:waypoint x="432.0" y="322.0"></omgdi:waypoint>
+        <omgdi:waypoint x="470.0" y="322.0"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow-booking-confirmed" id="BPMNEdge_flow-booking-confirmed" flowable:sourceDockerX="50.0" flowable:sourceDockerY="30.0" flowable:targetDockerX="50.0" flowable:targetDockerY="30.0">
+        <omgdi:waypoint x="1590.0" y="410.0"></omgdi:waypoint>
+        <omgdi:waypoint x="1602.0" y="410.0"></omgdi:waypoint>
+        <omgdi:waypoint x="1602.0" y="408.0"></omgdi:waypoint>
+        <omgdi:waypoint x="1640.0" y="408.0"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow-reminder-end" id="BPMNEdge_flow-reminder-end" flowable:sourceDockerX="50.0" flowable:sourceDockerY="30.0" flowable:targetDockerX="14.0" flowable:targetDockerY="14.0">
+        <omgdi:waypoint x="100.0" y="30.0"></omgdi:waypoint>
+        <omgdi:waypoint x="151.0" y="30.0"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow-outcome-approved" id="BPMNEdge_flow-outcome-approved" flowable:sourceDockerX="20.0" flowable:sourceDockerY="20.0" flowable:targetDockerX="50.0" flowable:targetDockerY="30.0">
+        <omgdi:waypoint x="1440.0" y="326.0"></omgdi:waypoint>
+        <omgdi:waypoint x="1452.0" y="326.0"></omgdi:waypoint>
+        <omgdi:waypoint x="1452.0" y="410.0"></omgdi:waypoint>
+        <omgdi:waypoint x="1490.0" y="410.0"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow-has-documents" id="BPMNEdge_flow-has-documents" flowable:sourceDockerX="20.0" flowable:sourceDockerY="20.0" flowable:targetDockerX="50.0" flowable:targetDockerY="30.0">
+        <omgdi:waypoint x="270.0" y="328.0"></omgdi:waypoint>
+        <omgdi:waypoint x="282.0" y="328.0"></omgdi:waypoint>
+        <omgdi:waypoint x="282.0" y="325.0"></omgdi:waypoint>
+        <omgdi:waypoint x="320.0" y="325.0"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow-recorded" id="BPMNEdge_flow-recorded" flowable:sourceDockerX="50.0" flowable:sourceDockerY="30.0" flowable:targetDockerX="20.0" flowable:targetDockerY="20.0">
+        <omgdi:waypoint x="180.0" y="330.0"></omgdi:waypoint>
+        <omgdi:waypoint x="192.0" y="330.0"></omgdi:waypoint>
+        <omgdi:waypoint x="192.0" y="328.0"></omgdi:waypoint>
+        <omgdi:waypoint x="230.0" y="328.0"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow-rejected-end" id="BPMNEdge_flow-rejected-end" flowable:sourceDockerX="50.0" flowable:sourceDockerY="30.0" flowable:targetDockerX="14.0" flowable:targetDockerY="14.0">
+        <omgdi:waypoint x="1590.0" y="250.0"></omgdi:waypoint>
+        <omgdi:waypoint x="1676.0" y="250.0"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow-finalized" id="BPMNEdge_flow-finalized" flowable:sourceDockerX="50.0" flowable:sourceDockerY="30.0" flowable:targetDockerX="20.0" flowable:targetDockerY="20.0">
+        <omgdi:waypoint x="1350.0" y="318.0"></omgdi:waypoint>
+        <omgdi:waypoint x="1362.0" y="318.0"></omgdi:waypoint>
+        <omgdi:waypoint x="1362.0" y="326.0"></omgdi:waypoint>
+        <omgdi:waypoint x="1400.0" y="326.0"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow-start" id="BPMNEdge_flow-start" flowable:sourceDockerX="15.0" flowable:sourceDockerY="15.0" flowable:targetDockerX="50.0" flowable:targetDockerY="30.0">
+        <omgdi:waypoint x="30.0" y="330.0"></omgdi:waypoint>
+        <omgdi:waypoint x="80.0" y="330.0"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge bpmnElement="flow-manager-decided" id="BPMNEdge_flow-manager-decided" flowable:sourceDockerX="50.0" flowable:sourceDockerY="30.0" flowable:targetDockerX="20.0" flowable:targetDockerY="20.0">
+        <omgdi:waypoint x="570.0" y="322.0"></omgdi:waypoint>
+        <omgdi:waypoint x="582.0" y="322.0"></omgdi:waypoint>
+        <omgdi:waypoint x="582.0" y="318.0"></omgdi:waypoint>
+        <omgdi:waypoint x="620.0" y="318.0"></omgdi:waypoint>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>
