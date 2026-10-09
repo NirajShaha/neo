@@ -45,6 +45,14 @@ neo:
   manager-reminder-duration: ${MANAGER_REMINDER_DURATION:PT48H}
   manager-escalation-duration: ${MANAGER_ESCALATION_DURATION:PT120H}
   storage-dir: ${STORAGE_DIR:./storage}
+  workflow:
+    claim-process-key: ${CLAIM_PROCESS_KEY:}
+    sync-enabled: ${WORKFLOW_SYNC_ENABLED:true}
+    git-uri: ${WORKFLOW_GIT_URI:https://github.com/NirajShaha/bpmn-config-repo.git}
+    git-branch: ${WORKFLOW_GIT_BRANCH:main}
+    git-local-dir: ${WORKFLOW_GIT_LOCAL_DIR:C:/Users/nss929757/Documents/work/bnpm-config-repo}
+    process-directory: ${WORKFLOW_PROCESS_DIRECTORY:src/main/resources/processes}
+    sync-interval-ms: ${WORKFLOW_SYNC_INTERVAL_MS:30000}
 
 management:
   endpoints:

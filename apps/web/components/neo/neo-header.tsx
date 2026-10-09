@@ -1,7 +1,15 @@
 "use client"
 
 import Link from "next/link"
-import { Bell, ChevronDown, House, ListTodo, Stamp, Network } from "lucide-react"
+import Image from "next/image"
+import {
+  Bell,
+  ChevronDown,
+  House,
+  ListTodo,
+  Stamp,
+  Network,
+} from "lucide-react"
 import { logoutAction } from "@/app/actions/auth"
 import { useNeoSession } from "@/components/neo/session-provider"
 import { cn } from "@workspace/ui/lib/utils"
@@ -37,8 +45,21 @@ export function NeoHeader({ active }: { active?: string }) {
     .toUpperCase()
   return (
     <header className="bg-white">
-      <div className="flex items-stretch justify-between border-b border-neutral-200 px-6">
-        <nav className="flex items-stretch">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-stretch border-b border-neutral-200 px-6">
+        <div className="col-start-1 flex items-center gap-3">
+          <Link href="/" aria-label="JLR home">
+            <Image
+              src="/fix-1-logo.png"
+              alt="Application built by Tata Technologies and Flowable"
+              width={176}
+              height={32}
+              className="h-10 w-auto object-contain"
+              unoptimized={true}
+            />
+          </Link>
+        </div>
+
+        <nav className="col-start-2 flex items-stretch">
           {tabs.map((tab) => (
             <Link
               key={tab.key}
@@ -70,7 +91,7 @@ export function NeoHeader({ active }: { active?: string }) {
           </DropdownMenu>
         </nav>
 
-        <div className="flex items-center gap-2 py-2 text-xs text-neutral-600">
+        <div className="col-start-3 flex items-center gap-2 justify-self-end py-2 text-xs text-neutral-600">
           <span className="font-medium">
             Material Cost Risk &amp; Opportunity Lifecycle
           </span>

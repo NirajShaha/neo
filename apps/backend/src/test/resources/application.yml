@@ -29,3 +29,11 @@ neo:
   manager-reminder-duration: PT4S
   manager-escalation-duration: PT9S
   storage-dir: ./target/test-storage
+  workflow:
+    claim-process-key: claimLifecycle
+    sync-enabled: false
+    git-uri:
+    git-branch: main
+    git-local-dir: ./target/test-workflow-source
+    process-directory: ./target/test-processes
+    sync-interval-ms: 60000
