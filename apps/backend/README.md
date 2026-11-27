@@ -16,7 +16,7 @@ The default datasource targets `localhost:3306/neo` with `root`/`manager` and
 creates the `neo` database on first connect if it is missing:
 
 ```bash
-cd backend
+cd apps/backend
 mvn spring-boot:run
 ```
 
@@ -36,7 +36,7 @@ Backend listens on `http://localhost:8080`.
 ## Quick smoke run (H2, no Docker needed)
 
 ```cmd
-cd backend
+cd apps/backend
 set SPRING_DATASOURCE_URL=jdbc:h2:mem:neo-smoke;DB_CLOSE_DELAY=-1;INIT=CREATE SCHEMA IF NOT EXISTS app\;CREATE SCHEMA IF NOT EXISTS flowable
 set SPRING_DATASOURCE_USERNAME=sa
 set SPRING_DATASOURCE_PASSWORD=
@@ -47,7 +47,7 @@ mvn spring-boot:run
 ## Tests
 
 ```bash
-cd backend
+cd apps/backend
 mvn test
 ```
 

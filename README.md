@@ -24,7 +24,24 @@ neo/
 
 - Node.js >= 20 and [pnpm](https://pnpm.io) 11
 - JDK 25 and Maven 3.9+ (for `apps/backend`)
-- MySQL 8+ running locally (or use the Docker compose file in `apps/backend`)
+- MySQL 8+ (when running `apps/backend` outside Docker)
+- Docker Engine/Desktop with Docker Compose v2 (for the containerized run)
+
+## Run with Docker Compose
+
+From the repository root:
+
+```bash
+docker compose up --build
+```
+
+Open the web app at `http://localhost:3000`; the backend and MySQL are also
+available at `http://localhost:8080` and `localhost:3306`. Compose uses local
+development credentials by default. Copy `.env.example` to `.env` to override
+them; use strong values before exposing the services to other users.
+
+Stop the services with `docker compose down`. The database and uploaded files
+remain in named volumes.
 
 ## Install
 

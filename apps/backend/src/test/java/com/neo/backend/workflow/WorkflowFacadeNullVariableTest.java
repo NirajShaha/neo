@@ -8,6 +8,7 @@ import com.neo.backend.workflow.dto.StartProcessRequest;
 import java.util.HashMap;
 import java.util.Map;
 import org.flowable.engine.RepositoryService;
+import org.flowable.engine.RuntimeService;
 import org.flowable.engine.TaskService;
 import org.flowable.task.api.Task;
 import org.junit.jupiter.api.AfterEach;
@@ -40,6 +41,9 @@ class WorkflowFacadeNullVariableTest {
 
     @Autowired
     private RepositoryService repositoryService;
+
+    @Autowired
+    private RuntimeService runtimeService;
 
     @Autowired
     private TaskService taskService;
@@ -95,5 +99,25 @@ class WorkflowFacadeNullVariableTest {
                 .isZero();
         assertThat(completed.variables()).containsKey("comment");
         assertThat(completed.variables().get("comment")).isNull();
+    }
+
+    @Test
+    void routesProcurementStartToForecastWhenAtbBbIsRequired() {
+        assertInitialTask(Map.of("atbBbRequired", true), "requestForecast");
+        assertInitialTask(Map.of("atbBbRequired", false), "getQuotes");
+    }
+
+    private void assertInitialTask(Map<String, Object> variables, String expectedTaskKey) {
+        var instance = runtimeService.startProcessInstanceByKey(
+                "jlrAmpP023ProcurementAuthorityV2", variables);
+        try {
+            Task task = taskService.createTaskQuery()
+                    .processInstanceId(instance.getId())
+                    .singleResult();
+            assertThat(task).isNotNull();
+            assertThat(task.getTaskDefinitionKey()).isEqualTo(expectedTaskKey);
+        } finally {
+            runtimeService.deleteProcessInstance(instance.getId(), "test cleanup");
+        }
     }
 }
