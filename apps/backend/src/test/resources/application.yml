@@ -22,9 +22,14 @@ flowable:
     enabled: false
 
 neo:
-  jwt:
-    secret: test-secret-change-me-min-32-chars-long-xxxxxx
-    expiry-seconds: 3600
+  security:
+    okta:
+      issuer: https://neo-test.okta.example/oauth2/default
+      audience: api://neo-test
+      sync-groups: true
+      auto-provision: true
+  seed:
+    demo-users: false
   finance-threshold: 1000
   manager-reminder-duration: PT4S
   manager-escalation-duration: PT9S

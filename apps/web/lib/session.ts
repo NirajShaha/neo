@@ -1,6 +1,6 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
-import { SESSION_COOKIE } from "./constants"
+import { readSession } from "./session-store"
 
 export const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8080"
 
@@ -12,8 +12,11 @@ export type SessionUser = {
   permissions: string[]
 }
 
+/** The Okta access token for the current browser session (refreshed ahead of expiry by proxy.ts). */
 export async function getToken(): Promise<string | undefined> {
-  return (await cookies()).get(SESSION_COOKIE)?.value
+  const store = await cookies()
+  const session = await readSession((name) => store.get(name)?.value)
+  return session?.accessToken
 }
 
 export async function getSession(): Promise<SessionUser | null> {

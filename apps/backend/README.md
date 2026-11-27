@@ -55,17 +55,22 @@ Covers the null-variable regression plus the full `claimLifecycle`
 (low-value approve, high-value finance route + reject) and
 `mandateApproval` (clearing + DOA) flows on H2.
 
-## Seed users (password: `password`)
+## Authentication
 
-| Email | Groups |
-|---|---|
-| employee1@neo.dev | employees |
-| manager1@neo.dev | employees, supervisors |
-| finance1@neo.dev | finance |
+The API is a stateless OAuth2 resource server: every `/api/**` call needs an Okta-issued access token
+(`Authorization: Bearer ...`). Signature, issuer, audience and expiry are validated; keys come from the
+issuer's JWKS and rotate automatically. There is no password login and no local JWT secret.
 
-## Key endpoints (JWT Bearer required except login/health)
+Each Okta identity maps to a local `neo_users` row (created on first login, bound by Okta `sub`). Okta
+groups in the token's `groups` claim are synced into `neo_memberships` on every request, so workflow task
+assignment keeps working unchanged. Setup: see the root README, "Authentication (Okta)".
 
-- `POST /api/auth/login` → `{ token, user }`
+Settings (env vars, or the repo-root `.env`): `OKTA_ISSUER` (required), `OKTA_AUDIENCE`,
+`OKTA_GROUPS_CLAIM`, `OKTA_SYNC_GROUPS`, `OKTA_AUTO_PROVISION`, `NEO_SEED_DEMO_USERS`.
+
+## Key endpoints (Okta Bearer token required except health)
+
+- `POST /api/auth/logout` (audit only)
 - `GET /api/auth/me`
 - `GET /api/claims?status=&...`, `POST /api/claims`, `GET /api/claims/:lineId`,
   `PUT /api/claims/:lineId`, `POST /api/claims/:lineId/submit`,

@@ -4,6 +4,9 @@ server:
 spring:
   application:
     name: neo-backend
+  config:
+    # Local runs (mvn spring-boot:run from apps/backend) pick up the repo-root .env; absent in containers.
+    import: optional:file:../../.env[.properties]
   servlet:
     multipart:
       max-file-size: 25MB
@@ -38,9 +41,23 @@ flowable:
     definition-cache-limit: 128
 
 neo:
-  jwt:
-    secret: ${NEO_JWT_SECRET:7bd71c8243d5cf453b35643796d8e5f2505b5020a03df051746e176c3e078f67}
-    expiry-seconds: ${NEO_JWT_EXPIRY:86400}
+  security:
+    okta:
+      # Okta authorization-server issuer, e.g. https://your-org.okta.com/oauth2/default (required)
+      issuer: ${OKTA_ISSUER:}
+      audience: ${OKTA_AUDIENCE:api://default}
+      email-claim: ${OKTA_EMAIL_CLAIM:email}
+      name-claim: ${OKTA_NAME_CLAIM:name}
+      groups-claim: ${OKTA_GROUPS_CLAIM:groups}
+      # Okta groups are the source of truth for local group membership (disable to manage groups in NEO instead)
+      sync-groups: ${OKTA_SYNC_GROUPS:true}
+      auto-provision: ${OKTA_AUTO_PROVISION:true}
+      clock-skew-seconds: ${OKTA_CLOCK_SKEW_SECONDS:60}
+      # Okta group name -> NEO group key. Unlisted names are used as-is.
+      # group-mappings:
+      #   NEO-Finance: finance
+  seed:
+    demo-users: ${NEO_SEED_DEMO_USERS:false}
   finance-threshold: ${FINANCE_THRESHOLD:1000}
   manager-reminder-duration: ${MANAGER_REMINDER_DURATION:PT48H}
   manager-escalation-duration: ${MANAGER_ESCALATION_DURATION:PT120H}

@@ -1,5 +1,6 @@
 package com.neo.backend.api;
 
+import com.neo.backend.config.NeoProperties;
 import com.neo.backend.domain.AppGroup;
 import com.neo.backend.domain.AppUser;
 import com.neo.backend.domain.ApprovalRule;
@@ -11,7 +12,6 @@ import com.neo.backend.repo.MembershipRepository;
 import java.util.List;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -21,19 +21,19 @@ public class SeedData implements ApplicationRunner {
     private final AppUserRepository users;
     private final MembershipRepository memberships;
     private final ApprovalRuleRepository rules;
-    private final PasswordEncoder passwords;
+    private final boolean demoUsers;
 
     public SeedData(
             AppGroupRepository groups,
             AppUserRepository users,
             MembershipRepository memberships,
             ApprovalRuleRepository rules,
-            PasswordEncoder passwords) {
+            NeoProperties properties) {
         this.groups = groups;
         this.users = users;
         this.memberships = memberships;
         this.rules = rules;
-        this.passwords = passwords;
+        this.demoUsers = properties.seed() != null && properties.seed().demoUsers();
     }
 
     @Override
@@ -41,9 +41,13 @@ public class SeedData implements ApplicationRunner {
         ensureGroup("employees", "Employees", "claim:create,claim:read:own,task:complete:employee");
         ensureGroup("supervisors", "Supervisors", "claim:read:all,task:approve:manager,approval:review");
         ensureGroup("finance", "Finance", "claim:read:all,task:approve:finance,report:read,approval:decide");
-        ensureUser("employee1@neo.dev", "Erin Employee", "ZZ0X", List.of("employees"));
-        ensureUser("manager1@neo.dev", "Morgan Manager", "ZZ1X", List.of("employees", "supervisors"));
-        ensureUser("finance1@neo.dev", "Frankie Finance", "ZZ1X", List.of("finance"));
+        if (demoUsers) {
+            // Dev convenience only. These accounts carry no credential; they bind to an Okta identity with the same
+            // email on its first login.
+            ensureUser("employee1@neo.dev", "Erin Employee", "ZZ0X", List.of("employees"));
+            ensureUser("manager1@neo.dev", "Morgan Manager", "ZZ1X", List.of("employees", "supervisors"));
+            ensureUser("finance1@neo.dev", "Frankie Finance", "ZZ1X", List.of("finance"));
+        }
         if (rules.count() == 0) {
             ApprovalRule rule = new ApprovalRule();
             rule.setName("Default finance threshold");
@@ -82,7 +86,6 @@ public class SeedData implements ApplicationRunner {
         });
         user.setName(name);
         user.setBuyerCode(buyerCode);
-        user.setPasswordHash(passwords.encode("password"));
         user.setActive(true);
         users.save(user);
         for (String key : groupKeys) {

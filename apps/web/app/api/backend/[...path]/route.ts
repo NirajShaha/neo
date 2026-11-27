@@ -1,13 +1,11 @@
-import { cookies } from "next/headers"
 import { NextResponse, type NextRequest } from "next/server"
-import { SESSION_COOKIE } from "@/lib/constants"
-import { BACKEND_URL } from "@/lib/session"
+import { BACKEND_URL, getToken } from "@/lib/session"
 
 async function forward(
   request: NextRequest,
   context: { params: Promise<{ path: string[] }> }
 ): Promise<NextResponse> {
-  const token = (await cookies()).get(SESSION_COOKIE)?.value
+  const token = await getToken()
   if (!token) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
   }

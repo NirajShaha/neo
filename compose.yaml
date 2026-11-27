@@ -31,7 +31,12 @@ services:
       SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/neo?createDatabaseIfNotExist=true&nullDatabaseMeansCurrent=true"
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-manager}
-      NEO_JWT_SECRET: ${NEO_JWT_SECRET:-dev-secret-change-me-min-32-chars-long-xxxxxx}
+      OKTA_ISSUER: ${OKTA_ISSUER:?Set OKTA_ISSUER in .env (see .env.example)}
+      OKTA_AUDIENCE: ${OKTA_AUDIENCE:-api://default}
+      OKTA_GROUPS_CLAIM: ${OKTA_GROUPS_CLAIM:-groups}
+      OKTA_SYNC_GROUPS: ${OKTA_SYNC_GROUPS:-true}
+      OKTA_AUTO_PROVISION: ${OKTA_AUTO_PROVISION:-true}
+      NEO_SEED_DEMO_USERS: ${NEO_SEED_DEMO_USERS:-false}
       STORAGE_DIR: /data/storage
       WORKFLOW_GIT_LOCAL_DIR: /data/workflow-source
       WORKFLOW_PROCESS_DIRECTORY: /data/workflows
@@ -52,6 +57,12 @@ services:
       - backend
     environment:
       BACKEND_URL: http://backend:8080
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      NEO_SESSION_SECRET: ${NEO_SESSION_SECRET:?Set NEO_SESSION_SECRET in .env (min 32 chars)}
+      OKTA_ISSUER: ${OKTA_ISSUER:?Set OKTA_ISSUER in .env (see .env.example)}
+      OKTA_CLIENT_ID: ${OKTA_CLIENT_ID:?Set OKTA_CLIENT_ID in .env}
+      OKTA_CLIENT_SECRET: ${OKTA_CLIENT_SECRET:?Set OKTA_CLIENT_SECRET in .env}
+      OKTA_SCOPES: ${OKTA_SCOPES:-openid profile email groups offline_access}
     ports:
       - "${WEB_PORT:-3000}:3000"
 

@@ -14,8 +14,13 @@ public class AppUser extends BaseEntity {
     @Column(name = "name", nullable = false)
     private String name;
 
+    /** Legacy column. Authentication is delegated to Okta; this is never a usable credential. */
     @Column(name = "password_hash", nullable = false)
-    private String passwordHash;
+    private String passwordHash = "OKTA_MANAGED";
+
+    /** Okta {@code sub} the account is bound to after the first login (stable, unlike email). */
+    @Column(name = "okta_subject", unique = true)
+    private String oktaSubject;
 
     @Column(name = "buyer_code")
     private String buyerCode;
@@ -45,6 +50,14 @@ public class AppUser extends BaseEntity {
 
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
+    }
+
+    public String getOktaSubject() {
+        return oktaSubject;
+    }
+
+    public void setOktaSubject(String oktaSubject) {
+        this.oktaSubject = oktaSubject;
     }
 
     public String getBuyerCode() {

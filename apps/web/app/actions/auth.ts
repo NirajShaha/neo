@@ -2,65 +2,49 @@
 
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
-import { SESSION_COOKIE, SESSION_MAX_AGE } from "@/lib/constants"
+import { authConfig } from "@/lib/auth-config"
+import { client, getOidcConfig, revokeRefreshToken } from "@/lib/oidc"
+import { readSession, sessionCookieDeletes } from "@/lib/session-store"
 import { BACKEND_URL } from "@/lib/session"
 
-export type LoginState = { error: string } | null
-
-export async function loginAction(
-  _previous: LoginState,
-  formData: FormData
-): Promise<LoginState> {
-  const email = String(formData.get("email") ?? "")
-  const password = String(formData.get("password") ?? "")
-
-  let token: string | undefined
-  try {
-    const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-      cache: "no-store",
-    })
-    if (response.ok) {
-      const data = (await response.json()) as { token?: string }
-      token = data.token
-    }
-  } catch {
-    return { error: "Could not reach the NEO backend. Try again." }
-  }
-
-  if (!token) {
-    return { error: "Invalid email or password." }
-  }
-
-  const store = await cookies()
-  store.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_MAX_AGE,
-  })
-
-  redirect("/")
-}
-
+/**
+ * Ends the NEO session and the Okta session (RP-initiated logout), so "sign out" really signs the user out of SSO.
+ * Runs as a Server Action, which Next.js protects with an Origin check (no CSRF-able GET logout).
+ */
 export async function logoutAction(): Promise<void> {
   const store = await cookies()
-  const token = store.get(SESSION_COOKIE)?.value
+  const session = await readSession((name) => store.get(name)?.value)
 
-  if (token) {
+  if (session) {
     try {
       await fetch(`${BACKEND_URL}/api/auth/logout`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${session.accessToken}` },
         cache: "no-store",
       })
     } catch {
-      /* best-effort audit trail only: the JWT is stateless */
+      /* audit trail only: the API holds no session */
     }
+    await revokeRefreshToken(session.refreshToken)
   }
 
-  store.delete(SESSION_COOKIE)
-  redirect("/login")
+  for (const cookie of sessionCookieDeletes(store.getAll().map((c) => c.name))) {
+    store.set(cookie.name, cookie.value, cookie.options)
+  }
+
+  let destination = "/login"
+  if (session) {
+    try {
+      const config = await getOidcConfig()
+      destination = client
+        .buildEndSessionUrl(config, {
+          id_token_hint: session.idToken,
+          post_logout_redirect_uri: `${authConfig().appUrl}/login`,
+        })
+        .toString()
+    } catch (error) {
+      console.warn("[auth] no Okta end-session endpoint, signing out locally only:", error)
+    }
+  }
+  redirect(destination)
 }
