@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+             xmlns:flowable="http://flowable.org/bpmn"
+             xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+             xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC"
+             xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI"
+             targetNamespace="http://neo.com/workflow"
+             exporter="NEO">
+  <process id="jlrAmpP023ProcurementAuthorityV2"
+           name="JLR-AMP-P-023 Procurement Authority V2"
+           isExecutable="true">
+    <documentation>Converted from the JLR-AMP-P-023 Procurement Authority V2 diagram. Set process variables moqUopChange, atbBbRequired, commercialChange, approved, and procurementType (ATB_BB or MOQ_CHANGE).</documentation>
+
+    <laneSet id="laneSet_procurement">
+      <lane id="lane_function" name="Function">
+        <flowNodeRef>startProcurement</flowNodeRef>
+        <flowNodeRef>procurementTypeStartGateway</flowNodeRef>
+        <flowNodeRef>getQuotes</flowNodeRef>
+        <flowNodeRef>requestForecast</flowNodeRef>
+        <flowNodeRef>enterCommercial</flowNodeRef>
+        <flowNodeRef>completeImpact</flowNodeRef>
+        <flowNodeRef>openAuthorityLog</flowNodeRef>
+        <flowNodeRef>atbBbRequiredGateway</flowNodeRef>
+        <flowNodeRef>openImpactLog</flowNodeRef>
+        <flowNodeRef>wait24Hours</flowNodeRef>
+        <flowNodeRef>obtainReference</flowNodeRef>
+        <flowNodeRef>atbBbCheck</flowNodeRef>
+        <flowNodeRef>addTurnDown</flowNodeRef>
+        <flowNodeRef>updateAuthorityWithImpact</flowNodeRef>
+        <flowNodeRef>submitApproval</flowNodeRef>
+        <flowNodeRef>approvedGateway</flowNodeRef>
+        <flowNodeRef>reasonForRejection</flowNodeRef>
+        <flowNodeRef>commercialGateway</flowNodeRef>
+        <flowNodeRef>updateBusinessCase</flowNodeRef>
+        <flowNodeRef>typeGateway</flowNodeRef>
+        <flowNodeRef>updateAuthorityFinal</flowNodeRef>
+        <flowNodeRef>updateSap</flowNodeRef>
+        <flowNodeRef>sendApprovalToIm</flowNodeRef>
+        <flowNodeRef>openCirGateway</flowNodeRef>
+        <flowNodeRef>updateDeliveryDate</flowNodeRef>
+        <flowNodeRef>endFunction</flowNodeRef>
+      </lane>
+      <lane id="lane_im" name="IM">
+        <flowNodeRef>extendedForecast</flowNodeRef>
+        <flowNodeRef>updateTurnDown</flowNodeRef>
+        <flowNodeRef>updateOrders</flowNodeRef>
+        <flowNodeRef>updateBuyerPlanner</flowNodeRef>
+        <flowNodeRef>endIm</flowNodeRef>
+      </lane>
+    </laneSet>
+
+    <startEvent id="startProcurement" name="Start"/>
+    <exclusiveGateway id="procurementTypeStartGateway" name="ATB or BB required?" default="flow-start-moq"/>
+
+    <userTask id="getQuotes" name="Get new or updated quotes from supplier" flowable:formKey="supplierQuotes"/>
+    <userTask id="requestForecast" name="Request ATB or BB forecast from Inventory Management" flowable:formKey="atbBbForecast"/>
+    <userTask id="extendedForecast" name="Create extended forecast for buyer" flowable:formKey="extendedForecast"/>
+    <userTask id="enterCommercial" name="Enter most appropriate business or commercial outcome" flowable:formKey="commercialOutcome"/>
+    <userTask id="completeImpact" name="Complete the impact outcome in the Impact Calculator (JLR-AMP-P-F068/F081)" flowable:formKey="impactCalculator"/>
+    <userTask id="openAuthorityLog" name="Open Procurement Authority Log (JLR-AMP-P-F231) and complete or update required fields" flowable:formKey="procurementAuthorityLog"/>
+
+    <exclusiveGateway id="atbBbRequiredGateway" name="ATB or BB?" default="flow-submit-no-atb"/>
+
+    <userTask id="openImpactLog" name="Open and complete/update the Impact Log or Unitpart Space Impact Log using the data from the PA form" flowable:formKey="impactLog"/>
+    <intermediateCatchEvent id="wait24Hours" name="Wait 24 hours">
+      <timerEventDefinition>
+        <timeDuration>PT24H</timeDuration>
+      </timerEventDefinition>
+    </intermediateCatchEvent>
+    <userTask id="obtainReference" name="Obtain reference number and space impact value" flowable:formKey="impactReference"/>
+    <exclusiveGateway id="atbBbCheck" name="ATB or BB?" default="flow-add-turn-down"/>
+    <userTask id="addTurnDown" name="Add part to the Turn Down Log (JLR-AMP-P-F295)" flowable:formKey="turnDownLog"/>
+    <userTask id="updateAuthorityWithImpact" name="Update Procurement Authority form with Space Impact Value" flowable:formKey="procurementAuthorityLog"/>
+    <userTask id="updateTurnDown" name="Update Turn Down Log (JLR-AMP-P-F295)" flowable:formKey="turnDownLog"/>
+
+    <userTask id="submitApproval" name="Submit for approval at AM/IM Governance where applicable and raise eSign" flowable:formKey="procurementApproval"/>
+    <exclusiveGateway id="approvedGateway" name="Approved?" default="flow-rejected"/>
+    <userTask id="reasonForRejection" name="Reason for rejection" flowable:formKey="rejectionReason"/>
+    <exclusiveGateway id="commercialGateway" name="Commercial?" default="flow-update-business"/>
+    <userTask id="updateBusinessCase" name="Update business case or justification and re-submit" flowable:formKey="commercialJustification"/>
+
+    <exclusiveGateway id="typeGateway" name="MOQ/UOP or ATB/BB?" default="flow-moq-change"/>
+    <userTask id="updateAuthorityFinal" name="Update the Procurement Authority Log (JLR-AMP-P-F231) with final status of parts" flowable:formKey="procurementAuthorityLog"/>
+    <userTask id="updateSap" name="Update SAP with new MOQ/UOP" flowable:formKey="sapUpdate"/>
+    <userTask id="sendApprovalToIm" name="Send approval to IM instruction to amend the order for the part" flowable:formKey="imInstruction"/>
+    <exclusiveGateway id="openCirGateway" name="Open CIR?" default="flow-no-cir"/>
+    <userTask id="updateDeliveryDate" name="Update estimated time of arrival of the next/first delivery of parts on CIR (JLR-AMP-LWI-064 Aftermarket Commercial Issue Resolution)" flowable:formKey="cirUpdate"/>
+
+    <userTask id="updateOrders" name="Update orders in relevant IM system" flowable:formKey="orderUpdate"/>
+    <userTask id="updateBuyerPlanner" name="Update buyer and planner" flowable:formKey="buyerPlannerUpdate"/>
+
+    <endEvent id="endFunction" name="End"/>
+    <endEvent id="endIm" name="End"/>
+
+    <sequenceFlow id="flow-start" sourceRef="startProcurement" targetRef="procurementTypeStartGateway"/>
+    <sequenceFlow id="flow-start-moq" name="No" sourceRef="procurementTypeStartGateway" targetRef="getQuotes"/>
+    <sequenceFlow id="flow-start-atb" name="Yes" sourceRef="procurementTypeStartGateway" targetRef="requestForecast">
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${atbBbRequired == true}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow-request-forecast" sourceRef="requestForecast" targetRef="extendedForecast"/>
+    <sequenceFlow id="flow-extended-forecast" sourceRef="extendedForecast" targetRef="getQuotes"/>
+    <sequenceFlow id="flow-quotes" sourceRef="getQuotes" targetRef="enterCommercial"/>
+    <sequenceFlow id="flow-commercial" sourceRef="enterCommercial" targetRef="completeImpact"/>
+    <sequenceFlow id="flow-impact" sourceRef="completeImpact" targetRef="openAuthorityLog"/>
+    <sequenceFlow id="flow-authority-log" sourceRef="openAuthorityLog" targetRef="atbBbRequiredGateway"/>
+
+    <sequenceFlow id="flow-atb-required" name="Yes" sourceRef="atbBbRequiredGateway" targetRef="openImpactLog">
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${atbBbRequired == true}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow-submit-no-atb" name="No" sourceRef="atbBbRequiredGateway" targetRef="submitApproval"/>
+    <sequenceFlow id="flow-open-impact" sourceRef="openImpactLog" targetRef="wait24Hours"/>
+    <sequenceFlow id="flow-wait-impact" sourceRef="wait24Hours" targetRef="obtainReference"/>
+    <sequenceFlow id="flow-reference" sourceRef="obtainReference" targetRef="atbBbCheck"/>
+    <sequenceFlow id="flow-impact-atb" name="ATB" sourceRef="atbBbCheck" targetRef="addTurnDown">
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${procurementType == 'ATB_BB'}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow-add-turn-down" name="BB" sourceRef="atbBbCheck" targetRef="updateAuthorityWithImpact"/>
+    <sequenceFlow id="flow-turn-down" sourceRef="addTurnDown" targetRef="updateTurnDown"/>
+    <sequenceFlow id="flow-turn-down-authority" sourceRef="updateTurnDown" targetRef="updateAuthorityWithImpact"/>
+    <sequenceFlow id="flow-impact-authority" sourceRef="updateAuthorityWithImpact" targetRef="submitApproval"/>
+
+    <sequenceFlow id="flow-submit-approval" sourceRef="submitApproval" targetRef="approvedGateway"/>
+    <sequenceFlow id="flow-approved" name="Yes" sourceRef="approvedGateway" targetRef="typeGateway">
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${approved == true}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow-rejected" name="No" sourceRef="approvedGateway" targetRef="reasonForRejection"/>
+    <sequenceFlow id="flow-rejection-reason" sourceRef="reasonForRejection" targetRef="commercialGateway"/>
+    <sequenceFlow id="flow-commercial-change" name="Yes" sourceRef="commercialGateway" targetRef="typeGateway">
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${commercialChange == true}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow-update-business" name="No" sourceRef="commercialGateway" targetRef="updateBusinessCase"/>
+    <sequenceFlow id="flow-business-resubmit" sourceRef="updateBusinessCase" targetRef="submitApproval"/>
+
+    <sequenceFlow id="flow-atb-final" name="ATB/BB" sourceRef="typeGateway" targetRef="updateAuthorityFinal">
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${procurementType == 'ATB_BB'}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow-moq-change" name="MOQ Change" sourceRef="typeGateway" targetRef="updateSap"/>
+    <sequenceFlow id="flow-authority-sap" sourceRef="updateAuthorityFinal" targetRef="updateSap"/>
+    <sequenceFlow id="flow-sap-im" sourceRef="updateSap" targetRef="sendApprovalToIm"/>
+    <sequenceFlow id="flow-sap-orders" sourceRef="updateSap" targetRef="updateOrders"/>
+    <sequenceFlow id="flow-im-cir" sourceRef="sendApprovalToIm" targetRef="openCirGateway"/>
+    <sequenceFlow id="flow-open-cir" name="Yes" sourceRef="openCirGateway" targetRef="updateDeliveryDate">
+      <conditionExpression xsi:type="tFormalExpression"><![CDATA[${openCir == true}]]></conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="flow-no-cir" name="No" sourceRef="openCirGateway" targetRef="endFunction"/>
+    <sequenceFlow id="flow-cir-end" sourceRef="updateDeliveryDate" targetRef="endFunction"/>
+    <sequenceFlow id="flow-im-orders" sourceRef="updateOrders" targetRef="updateBuyerPlanner"/>
+    <sequenceFlow id="flow-im-end" sourceRef="updateBuyerPlanner" targetRef="endIm"/>
+
+  </process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_procurementAuthorityV2">
+    <bpmndi:BPMNPlane id="BPMNPlane_procurementAuthorityV2" bpmnElement="jlrAmpP023ProcurementAuthorityV2">
+      <bpmndi:BPMNShape id="BPMNShape_lane_function" bpmnElement="lane_function" isHorizontal="true"><omgdc:Bounds x="0" y="0" width="3600" height="520"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_lane_im" bpmnElement="lane_im" isHorizontal="true"><omgdc:Bounds x="0" y="520" width="3600" height="220"/></bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="BPMNShape_startProcurement" bpmnElement="startProcurement"><omgdc:Bounds x="40" y="220" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_procurementTypeStartGateway" bpmnElement="procurementTypeStartGateway"><omgdc:Bounds x="100" y="213" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_getQuotes" bpmnElement="getQuotes"><omgdc:Bounds x="130" y="100" width="130" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_requestForecast" bpmnElement="requestForecast"><omgdc:Bounds x="130" y="280" width="130" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_extendedForecast" bpmnElement="extendedForecast"><omgdc:Bounds x="290" y="570" width="130" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_enterCommercial" bpmnElement="enterCommercial"><omgdc:Bounds x="310" y="100" width="140" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_completeImpact" bpmnElement="completeImpact"><omgdc:Bounds x="490" y="100" width="150" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_openAuthorityLog" bpmnElement="openAuthorityLog"><omgdc:Bounds x="680" y="100" width="150" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_atbBbRequiredGateway" bpmnElement="atbBbRequiredGateway"><omgdc:Bounds x="870" y="115" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_openImpactLog" bpmnElement="openImpactLog"><omgdc:Bounds x="970" y="260" width="150" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_wait24Hours" bpmnElement="wait24Hours"><omgdc:Bounds x="1160" y="280" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_obtainReference" bpmnElement="obtainReference"><omgdc:Bounds x="1240" y="260" width="150" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_atbBbCheck" bpmnElement="atbBbCheck"><omgdc:Bounds x="1430" y="275" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_addTurnDown" bpmnElement="addTurnDown"><omgdc:Bounds x="1530" y="380" width="140" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_updateTurnDown" bpmnElement="updateTurnDown"><omgdc:Bounds x="1530" y="570" width="140" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_updateAuthorityWithImpact" bpmnElement="updateAuthorityWithImpact"><omgdc:Bounds x="1720" y="260" width="150" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_submitApproval" bpmnElement="submitApproval"><omgdc:Bounds x="1910" y="100" width="160" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_approvedGateway" bpmnElement="approvedGateway"><omgdc:Bounds x="2120" y="115" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_reasonForRejection" bpmnElement="reasonForRejection"><omgdc:Bounds x="2220" y="250" width="140" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_commercialGateway" bpmnElement="commercialGateway"><omgdc:Bounds x="2410" y="260" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_updateBusinessCase" bpmnElement="updateBusinessCase"><omgdc:Bounds x="2510" y="380" width="150" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_typeGateway" bpmnElement="typeGateway"><omgdc:Bounds x="2280" y="115" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_updateAuthorityFinal" bpmnElement="updateAuthorityFinal"><omgdc:Bounds x="2410" y="40" width="160" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_updateSap" bpmnElement="updateSap"><omgdc:Bounds x="2620" y="100" width="140" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_sendApprovalToIm" bpmnElement="sendApprovalToIm"><omgdc:Bounds x="2810" y="100" width="150" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_openCirGateway" bpmnElement="openCirGateway"><omgdc:Bounds x="3010" y="115" width="50" height="50"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_updateDeliveryDate" bpmnElement="updateDeliveryDate"><omgdc:Bounds x="3110" y="40" width="180" height="80"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_updateOrders" bpmnElement="updateOrders"><omgdc:Bounds x="2810" y="570" width="150" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_updateBuyerPlanner" bpmnElement="updateBuyerPlanner"><omgdc:Bounds x="3010" y="570" width="150" height="70"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_endFunction" bpmnElement="endFunction"><omgdc:Bounds x="3380" y="120" width="36" height="36"/></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_endIm" bpmnElement="endIm"><omgdc:Bounds x="3240" y="585" width="36" height="36"/></bpmndi:BPMNShape>
+
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-start" bpmnElement="flow-start"><omgdi:waypoint x="76" y="238"/><omgdi:waypoint x="100" y="238"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-start-moq" bpmnElement="flow-start-moq"><omgdi:waypoint x="125" y="213"/><omgdi:waypoint x="125" y="190"/><omgdi:waypoint x="195" y="190"/><omgdi:waypoint x="195" y="170"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-start-atb" bpmnElement="flow-start-atb"><omgdi:waypoint x="125" y="263"/><omgdi:waypoint x="125" y="280"/><omgdi:waypoint x="195" y="280"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-request-forecast" bpmnElement="flow-request-forecast"><omgdi:waypoint x="260" y="315"/><omgdi:waypoint x="290" y="605"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-extended-forecast" bpmnElement="flow-extended-forecast"><omgdi:waypoint x="355" y="570"/><omgdi:waypoint x="195" y="170"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-quotes" bpmnElement="flow-quotes"><omgdi:waypoint x="260" y="135"/><omgdi:waypoint x="310" y="135"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-commercial" bpmnElement="flow-commercial"><omgdi:waypoint x="450" y="135"/><omgdi:waypoint x="490" y="135"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-impact" bpmnElement="flow-impact"><omgdi:waypoint x="640" y="135"/><omgdi:waypoint x="680" y="135"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-authority-log" bpmnElement="flow-authority-log"><omgdi:waypoint x="830" y="135"/><omgdi:waypoint x="870" y="140"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-atb-required" bpmnElement="flow-atb-required"><omgdi:waypoint x="920" y="140"/><omgdi:waypoint x="970" y="295"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-submit-no-atb" bpmnElement="flow-submit-no-atb"><omgdi:waypoint x="920" y="140"/><omgdi:waypoint x="1910" y="140"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-open-impact" bpmnElement="flow-open-impact"><omgdi:waypoint x="1120" y="295"/><omgdi:waypoint x="1160" y="298"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-wait-impact" bpmnElement="flow-wait-impact"><omgdi:waypoint x="1196" y="298"/><omgdi:waypoint x="1240" y="295"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-reference" bpmnElement="flow-reference"><omgdi:waypoint x="1390" y="295"/><omgdi:waypoint x="1430" y="300"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-impact-atb" bpmnElement="flow-impact-atb"><omgdi:waypoint x="1480" y="300"/><omgdi:waypoint x="1530" y="415"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-add-turn-down" bpmnElement="flow-add-turn-down"><omgdi:waypoint x="1480" y="300"/><omgdi:waypoint x="1720" y="295"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-turn-down" bpmnElement="flow-turn-down"><omgdi:waypoint x="1600" y="450"/><omgdi:waypoint x="1600" y="570"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-turn-down-authority" bpmnElement="flow-turn-down-authority"><omgdi:waypoint x="1670" y="605"/><omgdi:waypoint x="1795" y="330"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-impact-authority" bpmnElement="flow-impact-authority"><omgdi:waypoint x="1870" y="295"/><omgdi:waypoint x="1910" y="140"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-submit-approval" bpmnElement="flow-submit-approval"><omgdi:waypoint x="2070" y="140"/><omgdi:waypoint x="2120" y="140"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-approved" bpmnElement="flow-approved"><omgdi:waypoint x="2170" y="140"/><omgdi:waypoint x="2280" y="140"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-rejected" bpmnElement="flow-rejected"><omgdi:waypoint x="2145" y="165"/><omgdi:waypoint x="2290" y="250"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-rejection-reason" bpmnElement="flow-rejection-reason"><omgdi:waypoint x="2360" y="285"/><omgdi:waypoint x="2410" y="285"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-commercial-change" bpmnElement="flow-commercial-change"><omgdi:waypoint x="2435" y="260"/><omgdi:waypoint x="2305" y="165"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-update-business" bpmnElement="flow-update-business"><omgdi:waypoint x="2435" y="310"/><omgdi:waypoint x="2510" y="415"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-business-resubmit" bpmnElement="flow-business-resubmit"><omgdi:waypoint x="2585" y="380"/><omgdi:waypoint x="1990" y="180"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-atb-final" bpmnElement="flow-atb-final"><omgdi:waypoint x="2305" y="115"/><omgdi:waypoint x="2410" y="75"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-moq-change" bpmnElement="flow-moq-change"><omgdi:waypoint x="2330" y="165"/><omgdi:waypoint x="2620" y="135"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-authority-sap" bpmnElement="flow-authority-sap"><omgdi:waypoint x="2570" y="75"/><omgdi:waypoint x="2690" y="100"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-sap-im" bpmnElement="flow-sap-im"><omgdi:waypoint x="2760" y="135"/><omgdi:waypoint x="2810" y="135"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-sap-orders" bpmnElement="flow-sap-orders"><omgdi:waypoint x="2690" y="170"/><omgdi:waypoint x="2690" y="605"/><omgdi:waypoint x="2810" y="605"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-im-cir" bpmnElement="flow-im-cir"><omgdi:waypoint x="2960" y="135"/><omgdi:waypoint x="3010" y="140"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-open-cir" bpmnElement="flow-open-cir"><omgdi:waypoint x="3060" y="140"/><omgdi:waypoint x="3110" y="80"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-no-cir" bpmnElement="flow-no-cir"><omgdi:waypoint x="3060" y="165"/><omgdi:waypoint x="3380" y="138"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-cir-end" bpmnElement="flow-cir-end"><omgdi:waypoint x="3290" y="80"/><omgdi:waypoint x="3380" y="138"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-im-orders" bpmnElement="flow-im-orders"><omgdi:waypoint x="2960" y="605"/><omgdi:waypoint x="3010" y="605"/></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="BPMNEdge_flow-im-end" bpmnElement="flow-im-end"><omgdi:waypoint x="3160" y="605"/><omgdi:waypoint x="3240" y="603"/></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>
