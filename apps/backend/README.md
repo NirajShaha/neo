@@ -57,17 +57,18 @@ Covers the null-variable regression plus the full `claimLifecycle`
 
 ## Auth (Okta JWT)
 
-The backend is an OAuth2 resource server. Every `/api/**` and `/storage/**`
-request must carry an Okta access token as a `Bearer` token. Tokens are
-validated against `neo.okta.issuer-uri` plus the required `neo.okta.audience`,
-then mapped to a NEO user (auto-linked on first login by verified email) with
-memberships synced from the `groups` claim.
+The backend is an OAuth2 resource server. Every `/api/**` request must carry
+an Okta access token as a `Bearer` token. Tokens are validated against
+`neo.okta.issuer-uri` plus the required `neo.okta.audience`, then mapped to a
+NEO user (auto-linked on first login by email) with memberships synced from
+the `groups` claim. File downloads go through the authenticated
+`GET /api/files/:name` endpoint, served from `STORAGE_DIR` (Docker: `/data/storage`).
 
 Required environment:
 
 ```bash
 OKTA_ISSUER_URI=https://your-tenant.okta.com/oauth2/default
-OKTA_AUDIENCE=api://neo
+OKTA_AUDIENCE=api://default
 # OKTA_GROUPS_CLAIM=groups   # optional, defaults to "groups"
 ```
 
