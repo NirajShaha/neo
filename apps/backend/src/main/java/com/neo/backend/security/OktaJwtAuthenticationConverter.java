@@ -34,12 +34,11 @@ public class OktaJwtAuthenticationConverter implements Converter<Jwt, AbstractAu
     @Override
     public AbstractAuthenticationToken convert(Jwt token) {
         try {
-            String email = token.getClaimAsString("email");
+            // Access tokens carry sub + groups; the email lives in the ID token /
+            // userinfo. Prefer an email-shaped claim, never use the opaque sub as email.
+            String email = emailClaim(token);
             if (email == null || email.isBlank()) {
-                email = token.getClaimAsString("preferred_username");
-            }
-            if (email == null || email.isBlank()) {
-                email = token.getSubject();
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "An email is required");
             }
             IdentityService.SessionUser user = identity.resolveOktaSession(
                     issuer(token.getIssuer()),
@@ -62,12 +61,18 @@ public class OktaJwtAuthenticationConverter implements Converter<Jwt, AbstractAu
         }
     }
 
-    private static String issuer(URL issuer) {
-        return issuer == null ? "" : issuer.toString();
+    private static String emailClaim(Jwt token) {
+        for (String claim : List.of("email", "preferred_username")) {
+            String value = token.getClaimAsString(claim);
+            if (value != null && value.contains("@")) {
+                return value;
+            }
+        }
+        return null;
     }
 
-    private static boolean isTrue(Object claim) {
-        return Boolean.TRUE.equals(claim) || "true".equalsIgnoreCase(String.valueOf(claim));
+    private static String issuer(URL issuer) {
+        return issuer == null ? "" : issuer.toString();
     }
 
     private static List<String> groups(Object claim) {

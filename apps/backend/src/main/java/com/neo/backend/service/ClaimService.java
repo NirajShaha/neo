@@ -25,6 +25,7 @@ public class ClaimService {
     private final NeoProperties properties;
     private final WorkflowProcessRegistry processRegistry;
     private final ObjectMapper mapper;
+    private final org.springframework.context.ApplicationContext context;
 
     public ClaimService(
             ClaimRepository claims,
@@ -32,16 +33,31 @@ public class ClaimService {
             ActivityService activity,
             NeoProperties properties,
             ObjectMapper mapper,
-            WorkflowProcessRegistry processRegistry) {
+            WorkflowProcessRegistry processRegistry,
+            org.springframework.context.ApplicationContext context) {
         this.claims = claims;
         this.workflow = workflow;
         this.activity = activity;
         this.properties = properties;
         this.mapper = mapper;
         this.processRegistry = processRegistry;
+        this.context = context;
+    }
+
+    private ClaimService self() {
+        return context.getBean(ClaimService.class);
     }
 
     public List<Claim> list(Map<String, String> filters) {
+        if (filters == null || filters.isEmpty()) {
+            return claims.findAllByOrderByCreatedOnDesc();
+        }
+        String status = filters.get("status");
+        boolean onlyStatus = status != null && !status.isBlank() && !status.equals("__any") && !status.equals("Any")
+                && filters.size() == 1;
+        if (onlyStatus) {
+            return claims.findByStatusOrderByCreatedOnDesc(status);
+        }
         return claims.findAllByOrderByCreatedOnDesc().stream()
                 .filter(c -> matches(c, filters))
                 .toList();
@@ -55,11 +71,10 @@ public class ClaimService {
     @Transactional
     public Claim create(String userId, Map<String, Object> payload) {
         Claim claim = new Claim();
-        claim.setLineId(nextLineId());
         claim.setStatus("Draft");
         claim.setCreatedBy(userId);
         applyPayload(claim, payload);
-        Claim saved = claims.save(claim);
+        Claim saved = self().saveWithUniqueLineId(claim);
         activity.record("CLAIM_CREATED", saved.getLineId(), "Claim", saved.getLineId(), userId, "{}");
         return saved;
     }
@@ -241,20 +256,36 @@ public class ClaimService {
         }
     }
 
+    private static final Object LINE_ID_LOCK = new Object();
+
     private String nextLineId() {
-        int max = claims.findAll().stream()
+        int max = claims.findTopByOrderByLineIdDesc()
                 .map(Claim::getLineId)
                 .filter(id -> id != null && id.startsWith("MCI-"))
-                .mapToInt(id -> {
+                .map(id -> {
                     try {
                         return Integer.parseInt(id.substring(4));
                     } catch (NumberFormatException e) {
                         return 0;
                     }
                 })
-                .max()
                 .orElse(160);
         return "MCI-" + String.format("%05d", max + 1);
+    }
+
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public Claim saveWithUniqueLineId(Claim claim) {
+        synchronized (LINE_ID_LOCK) {
+            for (int attempt = 0; attempt < 5; attempt++) {
+                claim.setLineId(nextLineId());
+                try {
+                    return claims.saveAndFlush(claim);
+                } catch (org.springframework.dao.DataIntegrityViolationException duplicate) {
+                    // concurrent create grabbed the same number; retry with the next one
+                }
+            }
+        }
+        throw new ResponseStatusException(HttpStatus.CONFLICT, "Could not assign a claim number, try again");
     }
 
     public List<Claim> orderedByCreated() {

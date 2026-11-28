@@ -50,10 +50,45 @@ public class UserEventService {
         for (SseEmitter emitter : subscribers.getOrDefault(userId, new CopyOnWriteArraySet<>())) {
             try {
                 emitter.send(SseEmitter.event().id(UUID.randomUUID().toString()).name(type).data(Map.of("type", type)));
-            } catch (IOException e) {
+            } catch (org.apache.catalina.connector.ClientAbortException gone) {
                 remove(userId, emitter);
+            } catch (IllegalStateException gone) {
+                remove(userId, emitter);
+            } catch (IOException e) {
+                // Most IOExceptions here are closed browser tabs (broken pipe /
+                // connection reset) racing a task completion. Drop the dead
+                // emitter quietly; the client reconnects and reloads on error.
+                if (isBrokenPipe(e)) {
+                    remove(userId, emitter);
+                } else {
+                    remove(userId, emitter);
+                    org.slf4j.LoggerFactory.getLogger(UserEventService.class)
+                            .warn("Dropping SSE emitter for {}: {}", userId, e.toString());
+                }
             }
         }
+    }
+
+    private static boolean isBrokenPipe(IOException e) {
+        String message = String.valueOf(e.getMessage()).toLowerCase(java.util.Locale.ROOT);
+        if (message.contains("broken pipe") || message.contains("connection reset")
+                || message.contains("aborted") || message.contains("closed")) {
+            return true;
+        }
+        Throwable cause = e.getCause();
+        while (cause != null && cause != e) {
+            String causeMessage = String.valueOf(cause.getMessage()).toLowerCase(java.util.Locale.ROOT);
+            if (causeMessage.contains("broken pipe") || causeMessage.contains("connection reset")
+                    || causeMessage.contains("aborted") || causeMessage.contains("closed")) {
+                return true;
+            }
+            e = cause instanceof IOException io ? io : null;
+            if (e == null) {
+                return false;
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 
     private void remove(String userId, SseEmitter emitter) {

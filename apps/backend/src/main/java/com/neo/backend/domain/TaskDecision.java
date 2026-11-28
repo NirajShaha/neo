@@ -11,7 +11,11 @@ import jakarta.persistence.Table;
 })
 public class TaskDecision extends BaseEntity {
 
+    @Column(name = "request_id")
     private String requestId = "";
+
+    @Column(name = "request_type")
+    private String requestType = "Claim";
     @Column(name = "task_id")
     private String taskId = "";
 
@@ -36,6 +40,14 @@ public class TaskDecision extends BaseEntity {
 
     public void setRequestId(String requestId) {
         this.requestId = requestId;
+    }
+
+    public String getRequestType() {
+        return requestType;
+    }
+
+    public void setRequestType(String requestType) {
+        this.requestType = requestType;
     }
 
     public String getTaskId() {

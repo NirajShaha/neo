@@ -8,6 +8,7 @@ import java.util.List;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -28,7 +29,10 @@ public class ApprovalController {
     }
 
     @GetMapping("/decided")
-    public List<ApprovalDecisionItem> decided(Authentication authentication) {
-        return approvals.decided(identity.sessionFor(authentication.getName()));
+    public List<ApprovalDecisionItem> decided(
+            Authentication authentication,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "100") int size) {
+        return approvals.decided(identity.sessionFor(authentication.getName()), page, size);
     }
 }

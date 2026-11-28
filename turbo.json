@@ -4,7 +4,6 @@
   "globalEnv": [
     "NODE_ENV",
     "BACKEND_URL",
-    "NEXT_PUBLIC_API_URL",
     "NEXT_PUBLIC_APP_URL",
     "OKTA_ISSUER_URI",
     "OKTA_AUDIENCE",

@@ -27,9 +27,11 @@ export async function logoutAction(): Promise<void> {
   store.delete(SESSION_COOKIE)
   store.delete("okta_id_token")
 
-  if (OKTA_ISSUER && idToken) {
+  if (OKTA_ISSUER) {
     const endSession = new URL(`${OKTA_ISSUER}/v1/logout`)
-    endSession.searchParams.set("id_token_hint", idToken)
+    if (idToken) {
+      endSession.searchParams.set("id_token_hint", idToken)
+    }
     endSession.searchParams.set(
       "post_logout_redirect_uri",
       `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/login`

@@ -22,18 +22,25 @@ public class MandateService {
     private final ActivityService activity;
     private final NeoProperties properties;
     private final ObjectMapper mapper;
+    private final org.springframework.context.ApplicationContext context;
 
     public MandateService(
             MandateRequestRepository mandates,
             WorkflowFacade workflow,
             ActivityService activity,
             NeoProperties properties,
-            ObjectMapper mapper) {
+            ObjectMapper mapper,
+            org.springframework.context.ApplicationContext context) {
         this.mandates = mandates;
         this.workflow = workflow;
         this.activity = activity;
         this.properties = properties;
         this.mapper = mapper;
+        this.context = context;
+    }
+
+    private MandateService self() {
+        return context.getBean(MandateService.class);
     }
 
     public List<MandateRequest> list() {
@@ -48,11 +55,10 @@ public class MandateService {
     @Transactional
     public MandateRequest create(String userId, String userName, Map<String, Object> payload) {
         MandateRequest mandate = new MandateRequest();
-        mandate.setNumber(nextNumber());
         mandate.setCreatedBy(userId);
         mandate.setRaiser(userName == null ? "Buyer Officer" : userName);
         applyPayload(mandate, payload);
-        MandateRequest saved = mandates.save(mandate);
+        MandateRequest saved = self().saveWithUniqueNumber(mandate);
         activity.record("MANDATE_CREATED", saved.getNumber(), "MandateRequest", saved.getNumber(), userId, "{}");
         return saved;
     }
@@ -138,18 +144,34 @@ public class MandateService {
         return value == null ? fallback : String.valueOf(value);
     }
 
+    private static final Object NUMBER_LOCK = new Object();
+
     private String nextNumber() {
-        int max = mandates.findAll().stream()
+        int max = mandates.findTopByOrderByNumberDesc()
                 .map(MandateRequest::getNumber)
-                .mapToInt(number -> {
+                .map(number -> {
                     try {
                         return Integer.parseInt(number);
                     } catch (NumberFormatException e) {
                         return 63;
                     }
                 })
-                .max()
                 .orElse(63);
         return String.valueOf(max + 1);
+    }
+
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public MandateRequest saveWithUniqueNumber(MandateRequest mandate) {
+        synchronized (NUMBER_LOCK) {
+            for (int attempt = 0; attempt < 5; attempt++) {
+                mandate.setNumber(nextNumber());
+                try {
+                    return mandates.saveAndFlush(mandate);
+                } catch (org.springframework.dao.DataIntegrityViolationException duplicate) {
+                    // concurrent create grabbed the same number; retry with the next one
+                }
+            }
+        }
+        throw new ResponseStatusException(HttpStatus.CONFLICT, "Could not assign a mandate number, try again");
     }
 }

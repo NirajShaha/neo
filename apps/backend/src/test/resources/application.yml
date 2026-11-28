@@ -31,7 +31,7 @@ neo:
   manager-escalation-duration: PT9S
   storage-dir: ./target/test-storage
   workflow:
-    claim-process-key: claimLifecycle
+    claim-process-key: claimLifecycleV5
     sync-enabled: false
     git-uri:
     git-branch: main

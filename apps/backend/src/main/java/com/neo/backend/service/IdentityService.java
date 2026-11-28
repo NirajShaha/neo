@@ -8,9 +8,11 @@ import com.neo.backend.repo.AppUserRepository;
 import com.neo.backend.repo.MembershipRepository;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -40,22 +42,21 @@ public class IdentityService {
         List<Membership> links = memberships.findByUserId(userId);
         List<String> groupKeys = new ArrayList<>();
         List<String> permissions = new ArrayList<>();
+        Map<String, AppGroup> groupCache = new HashMap<>();
         for (Membership link : links) {
-            groups.findById(link.getGroupId()).map(AppGroup::getKey).ifPresent(groupKeys::add);
-            groups.findById(link.getGroupId()).ifPresent(group -> {
-                if (group.getPermissions() != null && !group.getPermissions().isBlank()) {
-                    Arrays.stream(group.getPermissions().split(","))
-                            .map(String::trim)
-                            .filter(s -> !s.isEmpty())
-                            .forEach(permissions::add);
-                }
-            });
+            AppGroup group = groupCache.computeIfAbsent(link.getGroupId(), groups::findByIdOrNull);
+            if (group == null) {
+                continue;
+            }
+            groupKeys.add(group.getKey());
+            if (group.getPermissions() != null && !group.getPermissions().isBlank()) {
+                Arrays.stream(group.getPermissions().split(","))
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .forEach(permissions::add);
+            }
         }
         return new SessionUser(user.getId(), user.getEmail(), user.getName(), groupKeys, permissions);
-    }
-
-    public SessionUser requireUser(String userId) {
-        return sessionFor(userId);
     }
 
     @Transactional
@@ -149,11 +150,19 @@ public class IdentityService {
     }
 
     public List<String> userIdsInGroups(List<String> groupKeys) {
-        List<String> userIds = new ArrayList<>();
-        for (String key : groupKeys) {
-            groups.findByKey(key).ifPresent(group -> memberships.findByGroupId(group.getId())
-                    .forEach(link -> userIds.add(link.getUserId())));
+        if (groupKeys == null || groupKeys.isEmpty()) {
+            return List.of();
         }
-        return userIds;
+        List<AppGroup> matched = new ArrayList<>();
+        for (String key : groupKeys) {
+            groups.findByKey(key).ifPresent(matched::add);
+        }
+        if (matched.isEmpty()) {
+            return List.of();
+        }
+        List<String> groupIds = matched.stream().map(AppGroup::getId).toList();
+        return memberships.findByGroupIdIn(groupIds).stream()
+                .map(Membership::getUserId)
+                .toList();
     }
 }

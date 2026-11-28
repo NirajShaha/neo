@@ -34,6 +34,9 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/claims/{lineId}")
 public class ClaimDetailController {
 
+    private static final java.util.Set<String> ALLOWED_EXTENSIONS = java.util.Set.of(
+            "jpeg", "jpg", "pdf", "xls", "xlsx", "xlsm", "doc", "docx", "eml", "msg", "zip", "png", "ppt", "pptx");
+
     private final ClaimService claims;
     private final NoteRepository notes;
     private final DocumentRepository documents;
@@ -87,14 +90,14 @@ public class ClaimDetailController {
         Note note = new Note();
         note.setLineId(lineId);
         note.setNote(body.getOrDefault("note", ""));
-        note.setAuthor(authentication == null ? "" : authentication.getName());
-        note.setCreatedBy(authentication == null ? "" : authentication.getName());
+        String actor = actorName(authentication);
+        note.setAuthor(actor);
+        note.setCreatedBy(actor);
         if (note.getNote() == null || note.getNote().isBlank() || note.getNote().length() > 1000) {
             throw new IllegalArgumentException("Note must be 1-1000 characters");
         }
         Note saved = notes.save(note);
-        activity.record("NOTE_ADDED", "Note added", "Claim", lineId,
-                authentication == null ? "" : authentication.getName(), "{}");
+        activity.record("NOTE_ADDED", "Note added", "Claim", lineId, actor, "{}");
         return saved;
     }
 
@@ -115,18 +118,33 @@ public class ClaimDetailController {
         if (file.getSize() > 25L * 1024 * 1024) {
             throw new IllegalArgumentException("File exceeds the 25 MB limit");
         }
+        String originalName = file.getOriginalFilename() == null ? "upload" : file.getOriginalFilename();
+        String extension = originalName.contains(".")
+                ? originalName.substring(originalName.lastIndexOf('.') + 1).toLowerCase(java.util.Locale.ROOT)
+                : "";
+        if (!ALLOWED_EXTENSIONS.contains(extension)) {
+            throw new IllegalArgumentException("File type ." + extension + " is not permitted");
+        }
         Document document = new Document();
         document.setLineId(lineId);
-        document.setFileName(file.getOriginalFilename() == null ? "upload" : file.getOriginalFilename());
-        document.setFileType(fileType);
-        document.setDescription(description);
+        document.setFileName(originalName.length() > 255 ? originalName.substring(0, 255) : originalName);
+        document.setFileType(fileType.length() > 100 ? fileType.substring(0, 100) : fileType);
+        document.setDescription(description.length() > 2000 ? description.substring(0, 2000) : description);
         document.setStoragePath(store(file, document.getFileName()));
         document.setSizeBytes(file.getSize());
-        document.setCreatedBy(authentication == null ? "" : authentication.getName());
+        String actor = actorName(authentication);
+        document.setCreatedBy(actor);
         Document saved = documents.save(document);
-        activity.record("ATTACHMENT_ADDED", saved.getFileName(), "Claim", lineId,
-                authentication == null ? "" : authentication.getName(), "{}");
+        activity.record("ATTACHMENT_ADDED", saved.getFileName(), "Claim", lineId, actor, "{}");
         return saved;
+    }
+
+    private static String actorName(Authentication authentication) {
+        if (authentication == null || authentication.getName() == null) {
+            return "";
+        }
+        String name = authentication.getName();
+        return name.length() > 255 ? name.substring(0, 255) : name;
     }
 
     private String store(MultipartFile file, String fileName) {

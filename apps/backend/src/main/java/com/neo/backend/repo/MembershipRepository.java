@@ -8,4 +8,8 @@ public interface MembershipRepository extends JpaRepository<Membership, String> 
     List<Membership> findByUserId(String userId);
 
     List<Membership> findByGroupId(String groupId);
+
+    List<Membership> findByUserIdIn(java.util.Collection<String> userIds);
+
+    List<Membership> findByGroupIdIn(java.util.Collection<String> groupIds);
 }
