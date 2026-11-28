@@ -34,6 +34,9 @@ services:
       OKTA_ISSUER_URI: ${OKTA_ISSUER_URI}
       OKTA_AUDIENCE: ${OKTA_AUDIENCE:-api://neo}
       OKTA_GROUPS_CLAIM: ${OKTA_GROUPS_CLAIM:-groups}
+      NEO_JWT_SECRET: ${NEO_JWT_SECRET:-dev-secret-change-me-min-32-chars-long-xxxxxx}
+      CLAIM_PROCESS_KEY: ${CLAIM_PROCESS_KEY:-claimLifecycleV5}
+      WORKFLOW_SYNC_ENABLED: ${WORKFLOW_SYNC_ENABLED:-false}
       STORAGE_DIR: /data/storage
       WORKFLOW_GIT_LOCAL_DIR: /data/workflow-source
       WORKFLOW_PROCESS_DIRECTORY: /data/workflows
