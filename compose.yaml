@@ -31,7 +31,9 @@ services:
       SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/neo?createDatabaseIfNotExist=true&nullDatabaseMeansCurrent=true"
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-manager}
-      NEO_JWT_SECRET: ${NEO_JWT_SECRET:-dev-secret-change-me-min-32-chars-long-xxxxxx}
+      OKTA_ISSUER_URI: ${OKTA_ISSUER_URI}
+      OKTA_AUDIENCE: ${OKTA_AUDIENCE:-api://neo}
+      OKTA_GROUPS_CLAIM: ${OKTA_GROUPS_CLAIM:-groups}
       STORAGE_DIR: /data/storage
       WORKFLOW_GIT_LOCAL_DIR: /data/workflow-source
       WORKFLOW_PROCESS_DIRECTORY: /data/workflows
@@ -48,10 +50,16 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         BACKEND_URL: http://backend:8080
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
     depends_on:
       - backend
     environment:
       BACKEND_URL: http://backend:8080
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      OKTA_ISSUER_URI: ${OKTA_ISSUER_URI}
+      OKTA_CLIENT_ID: ${OKTA_CLIENT_ID}
+      OKTA_CLIENT_SECRET: ${OKTA_CLIENT_SECRET}
+      OKTA_SCOPES: ${OKTA_SCOPES:-openid profile email groups}
     ports:
       - "${WEB_PORT:-3000}:3000"
 

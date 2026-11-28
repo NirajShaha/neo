@@ -17,3 +17,4 @@
 - Prefers storing uploaded files on the local filesystem (disk, e.g. the backend's current working directory) rather than as blobs inside the database. Confidence: 0.6
 - Expects uploaded files to be actually persisted and retrievable — served/visible via a URL (e.g. under /storage), not just recorded as metadata rows. Confidence: 0.7
 - Expects edit/update flows to pre-fill forms with the previously submitted data so records round-trip (submitted values are visible when reopening the update screen). Confidence: 0.7
+- Prefers step-by-step guidance one step at a time, waiting for confirmation each step is completed before moving to the next. Confidence: 0.8

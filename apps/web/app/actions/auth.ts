@@ -2,52 +2,15 @@
 
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
-import { SESSION_COOKIE, SESSION_MAX_AGE } from "@/lib/constants"
+import { SESSION_COOKIE } from "@/lib/constants"
 import { BACKEND_URL } from "@/lib/session"
 
-export type LoginState = { error: string } | null
-
-export async function loginAction(
-  _previous: LoginState,
-  formData: FormData
-): Promise<LoginState> {
-  const email = String(formData.get("email") ?? "")
-  const password = String(formData.get("password") ?? "")
-
-  let token: string | undefined
-  try {
-    const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-      cache: "no-store",
-    })
-    if (response.ok) {
-      const data = (await response.json()) as { token?: string }
-      token = data.token
-    }
-  } catch {
-    return { error: "Could not reach the NEO backend. Try again." }
-  }
-
-  if (!token) {
-    return { error: "Invalid email or password." }
-  }
-
-  const store = await cookies()
-  store.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_MAX_AGE,
-  })
-
-  redirect("/")
-}
+const OKTA_ISSUER = process.env.OKTA_ISSUER_URI?.replace(/\/+$/, "")
 
 export async function logoutAction(): Promise<void> {
   const store = await cookies()
   const token = store.get(SESSION_COOKIE)?.value
+  const idToken = store.get("okta_id_token")?.value
 
   if (token) {
     try {
@@ -57,10 +20,22 @@ export async function logoutAction(): Promise<void> {
         cache: "no-store",
       })
     } catch {
-      /* best-effort audit trail only: the JWT is stateless */
+      /* best-effort audit trail only: the access token is opaque to us */
     }
   }
 
   store.delete(SESSION_COOKIE)
+  store.delete("okta_id_token")
+
+  if (OKTA_ISSUER && idToken) {
+    const endSession = new URL(`${OKTA_ISSUER}/v1/logout`)
+    endSession.searchParams.set("id_token_hint", idToken)
+    endSession.searchParams.set(
+      "post_logout_redirect_uri",
+      `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/login`
+    )
+    redirect(endSession.toString())
+  }
+
   redirect("/login")
 }

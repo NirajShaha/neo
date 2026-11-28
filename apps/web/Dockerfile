@@ -18,6 +18,8 @@ COPY packages/ packages/
 
 ARG BACKEND_URL=http://backend:8080
 ENV BACKEND_URL=${BACKEND_URL}
+ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
+ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 RUN pnpm --filter web build
 
 FROM node:22-bookworm-slim AS runner
@@ -28,6 +30,8 @@ ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 ARG BACKEND_URL=http://backend:8080
 ENV BACKEND_URL=${BACKEND_URL}
+ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
+ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 
 COPY --from=build --chown=node:node /workspace/apps/web/.next/standalone ./
 COPY --from=build --chown=node:node /workspace/apps/web/.next/static ./apps/web/.next/static

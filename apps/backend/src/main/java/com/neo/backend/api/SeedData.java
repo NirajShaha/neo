@@ -11,7 +11,6 @@ import com.neo.backend.repo.MembershipRepository;
 import java.util.List;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -21,19 +20,16 @@ public class SeedData implements ApplicationRunner {
     private final AppUserRepository users;
     private final MembershipRepository memberships;
     private final ApprovalRuleRepository rules;
-    private final PasswordEncoder passwords;
 
     public SeedData(
             AppGroupRepository groups,
             AppUserRepository users,
             MembershipRepository memberships,
-            ApprovalRuleRepository rules,
-            PasswordEncoder passwords) {
+            ApprovalRuleRepository rules) {
         this.groups = groups;
         this.users = users;
         this.memberships = memberships;
         this.rules = rules;
-        this.passwords = passwords;
     }
 
     @Override
@@ -82,7 +78,9 @@ public class SeedData implements ApplicationRunner {
         });
         user.setName(name);
         user.setBuyerCode(buyerCode);
-        user.setPasswordHash(passwords.encode("password"));
+        if (user.getPasswordHash() == null || user.getPasswordHash().isBlank()) {
+            user.setPasswordHash("{okta}");
+        }
         user.setActive(true);
         users.save(user);
         for (String key : groupKeys) {
