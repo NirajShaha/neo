@@ -55,7 +55,32 @@ Covers the null-variable regression plus the full `claimLifecycle`
 (low-value approve, high-value finance route + reject) and
 `mandateApproval` (clearing + DOA) flows on H2.
 
-## Seed users (password: `password`)
+## Auth (Okta JWT)
+
+The backend is an OAuth2 resource server. Every `/api/**` request must carry
+an Okta access token as a `Bearer` token. Tokens are validated against
+`neo.okta.issuer-uri` plus the required `neo.okta.audience`, then mapped to a
+NEO user (auto-linked on first login by email) with memberships synced from
+the `groups` claim. File downloads go through the authenticated
+`GET /api/files/:name` endpoint, served from `STORAGE_DIR` (Docker: `/data/storage`).
+
+Required environment:
+
+```bash
+OKTA_ISSUER_URI=https://your-tenant.okta.com/oauth2/default
+OKTA_AUDIENCE=api://default
+# OKTA_GROUPS_CLAIM=groups   # optional, defaults to "groups"
+```
+
+In Okta, the authorization server must expose the `groups` claim on access
+tokens and the NEO group keys (`employees`, `supervisors`, `finance`) must
+exist as Okta group names (or mapped claim values); users with no mapped group
+get `401 No NEO groups assigned`.
+
+## Seed users
+
+Seed users still exist for local data, but they only become usable once linked
+to an Okta identity on first login (verified email match):
 
 | Email | Groups |
 |---|---|
@@ -63,10 +88,9 @@ Covers the null-variable regression plus the full `claimLifecycle`
 | manager1@neo.dev | employees, supervisors |
 | finance1@neo.dev | finance |
 
-## Key endpoints (JWT Bearer required except login/health)
+## Key endpoints (Okta Bearer token required except health)
 
-- `POST /api/auth/login` → `{ token, user }`
-- `GET /api/auth/me`
+- `POST /api/auth/logout` (audit trail), `GET /api/auth/me`
 - `GET /api/claims?status=&...`, `POST /api/claims`, `GET /api/claims/:lineId`,
   `PUT /api/claims/:lineId`, `POST /api/claims/:lineId/submit`,
   `GET /api/claims/:lineId/history|/audit|/notes`, `POST /api/claims/:lineId/notes`,

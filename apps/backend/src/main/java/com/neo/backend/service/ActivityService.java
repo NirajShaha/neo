@@ -1,9 +1,7 @@
 package com.neo.backend.service;
 
 import com.neo.backend.domain.ActivityLog;
-import com.neo.backend.domain.AppUser;
 import com.neo.backend.repo.ActivityLogRepository;
-import com.neo.backend.repo.AppUserRepository;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -24,11 +22,11 @@ public class ActivityService {
     }
 
     private final ActivityLogRepository logs;
-    private final AppUserRepository users;
+    private final UserDisplayService display;
 
-    public ActivityService(ActivityLogRepository logs, AppUserRepository users) {
+    public ActivityService(ActivityLogRepository logs, UserDisplayService display) {
         this.logs = logs;
-        this.users = users;
+        this.display = display;
     }
 
     public void record(String action, String description, String entityType, String entityId, String actorId, String data) {
@@ -43,23 +41,19 @@ public class ActivityService {
     }
 
     public List<ActivityView> forEntityWithActor(String entityId) {
-        return logs.findByEntityIdOrderByCreatedOnDesc(entityId).stream()
+        java.util.List<ActivityLog> entries = logs.findByEntityIdOrderByCreatedOnDesc(entityId);
+        java.util.Map<String, String> names = display.namesById(
+                entries.stream().map(ActivityLog::getActorId).toList());
+        return entries.stream()
                 .map(log -> new ActivityView(
                         log.getAction(),
                         log.getDescription(),
                         log.getEntityType(),
                         log.getEntityId(),
                         log.getActorId(),
-                        userName(log.getActorId()),
+                        display.nameOf(log.getActorId(), names),
                         log.getData(),
                         log.getCreatedOn()))
                 .toList();
-    }
-
-    private String userName(String actorId) {
-        if (actorId == null || actorId.isBlank()) {
-            return null;
-        }
-        return users.findById(actorId).map(AppUser::getName).orElse(null);
     }
 }

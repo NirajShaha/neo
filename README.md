@@ -43,6 +43,11 @@ them; use strong values before exposing the services to other users.
 Stop the services with `docker compose down`. The database and uploaded files
 remain in named volumes.
 
+If login fails inside Docker with "could not reach Okta", the container does
+not trust your corporate proxy: mount your proxy CA into the web container
+(e.g. `-v /path/to/proxy-ca.crt:/usr/local/share/ca-certificates/proxy.crt:ro`)
+and rebuild, or run web locally with `NODE_EXTRA_CA_CERTS` pointing at it.
+
 ## Install
 
 ```bash

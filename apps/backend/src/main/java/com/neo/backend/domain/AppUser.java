@@ -3,9 +3,14 @@ package com.neo.backend.domain;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 @Entity
-@Table(name = "neo_users")
+@Table(
+        name = "neo_users",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_neo_users_external_identity",
+                columnNames = {"identity_issuer", "identity_subject"}))
 public class AppUser extends BaseEntity {
 
     @Column(name = "email", nullable = false, unique = true)
@@ -16,6 +21,12 @@ public class AppUser extends BaseEntity {
 
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
+
+    @Column(name = "identity_issuer", length = 255)
+    private String identityIssuer;
+
+    @Column(name = "identity_subject", length = 255)
+    private String identitySubject;
 
     @Column(name = "buyer_code")
     private String buyerCode;
@@ -45,6 +56,22 @@ public class AppUser extends BaseEntity {
 
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
+    }
+
+    public String getIdentityIssuer() {
+        return identityIssuer;
+    }
+
+    public void setIdentityIssuer(String identityIssuer) {
+        this.identityIssuer = identityIssuer;
+    }
+
+    public String getIdentitySubject() {
+        return identitySubject;
+    }
+
+    public void setIdentitySubject(String identitySubject) {
+        this.identitySubject = identitySubject;
     }
 
     public String getBuyerCode() {

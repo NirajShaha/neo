@@ -38,9 +38,10 @@ flowable:
     definition-cache-limit: 128
 
 neo:
-  jwt:
-    secret: ${NEO_JWT_SECRET:7bd71c8243d5cf453b35643796d8e5f2505b5020a03df051746e176c3e078f67}
-    expiry-seconds: ${NEO_JWT_EXPIRY:86400}
+  okta:
+    issuer-uri: ${OKTA_ISSUER_URI}
+    audience: ${OKTA_AUDIENCE}
+    groups-claim: ${OKTA_GROUPS_CLAIM:groups}
   finance-threshold: ${FINANCE_THRESHOLD:1000}
   manager-reminder-duration: ${MANAGER_REMINDER_DURATION:PT48H}
   manager-escalation-duration: ${MANAGER_ESCALATION_DURATION:PT120H}

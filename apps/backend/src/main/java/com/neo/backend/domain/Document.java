@@ -74,7 +74,7 @@ public class Document extends BaseEntity {
         }
         String normalized = storagePath.replace('\\', '/');
         String name = normalized.substring(normalized.lastIndexOf('/') + 1);
-        return "/storage/" + name;
+        return "/api/files/" + name;
     }
 
     public long getSizeBytes() {

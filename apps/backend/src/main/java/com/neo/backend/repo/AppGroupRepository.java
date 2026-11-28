@@ -6,4 +6,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AppGroupRepository extends JpaRepository<AppGroup, String> {
     Optional<AppGroup> findByKey(String key);
+
+    default AppGroup findByIdOrNull(String id) {
+        return id == null ? null : findById(id).orElse(null);
+    }
 }

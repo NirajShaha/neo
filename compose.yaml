@@ -31,7 +31,9 @@ services:
       SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/neo?createDatabaseIfNotExist=true&nullDatabaseMeansCurrent=true"
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-manager}
-      NEO_JWT_SECRET: ${NEO_JWT_SECRET:-dev-secret-change-me-min-32-chars-long-xxxxxx}
+      OKTA_ISSUER_URI: ${OKTA_ISSUER_URI}
+      OKTA_AUDIENCE: ${OKTA_AUDIENCE:-api://default}
+      OKTA_GROUPS_CLAIM: ${OKTA_GROUPS_CLAIM:-groups}
       CLAIM_PROCESS_KEY: ${CLAIM_PROCESS_KEY:-claimLifecycleV5}
       WORKFLOW_SYNC_ENABLED: ${WORKFLOW_SYNC_ENABLED:-false}
       STORAGE_DIR: /data/storage
@@ -43,6 +45,12 @@ services:
       - backend_storage:/data/storage
       - workflow_source:/data/workflow-source
       - workflow_processes:/data/workflows
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
 
   web:
     build:
@@ -50,10 +58,21 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         BACKEND_URL: http://backend:8080
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+        OKTA_ISSUER_URI: ${OKTA_ISSUER_URI}
+        OKTA_CLIENT_ID: ${OKTA_CLIENT_ID}
+        OKTA_CLIENT_SECRET: ${OKTA_CLIENT_SECRET}
+        OKTA_SCOPES: ${OKTA_SCOPES:-openid profile email}
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     environment:
       BACKEND_URL: http://backend:8080
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      OKTA_ISSUER_URI: ${OKTA_ISSUER_URI}
+      OKTA_CLIENT_ID: ${OKTA_CLIENT_ID}
+      OKTA_CLIENT_SECRET: ${OKTA_CLIENT_SECRET}
+      OKTA_SCOPES: ${OKTA_SCOPES:-openid profile email}
     ports:
       - "${WEB_PORT:-3000}:3000"
 

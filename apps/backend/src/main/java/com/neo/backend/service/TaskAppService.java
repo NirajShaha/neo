@@ -1,10 +1,8 @@
 package com.neo.backend.service;
 
-import com.neo.backend.domain.AppUser;
 import com.neo.backend.domain.Claim;
 import com.neo.backend.domain.MandateRequest;
 import com.neo.backend.domain.TaskDecision;
-import com.neo.backend.repo.AppUserRepository;
 import com.neo.backend.repo.ClaimRepository;
 import com.neo.backend.repo.MandateRequestRepository;
 import com.neo.backend.repo.TaskDecisionRepository;
@@ -36,31 +34,31 @@ public class TaskAppService {
     private final ClaimRepository claims;
     private final MandateRequestRepository mandates;
     private final TaskDecisionRepository decisions;
-    private final AppUserRepository users;
     private final ClaimService claimService;
     private final MandateService mandateService;
     private final ActivityService activity;
     private final UserEventService events;
+    private final UserDisplayService display;
 
     public TaskAppService(
             WorkflowFacade workflow,
             ClaimRepository claims,
             MandateRequestRepository mandates,
             TaskDecisionRepository decisions,
-            AppUserRepository users,
             ClaimService claimService,
             MandateService mandateService,
             ActivityService activity,
-            UserEventService events) {
+            UserEventService events,
+            UserDisplayService display) {
         this.workflow = workflow;
         this.claims = claims;
         this.mandates = mandates;
         this.decisions = decisions;
-        this.users = users;
         this.claimService = claimService;
         this.mandateService = mandateService;
         this.activity = activity;
         this.events = events;
+        this.display = display;
     }
 
     public List<TaskResponse> listForUser(SessionUser user) {
@@ -117,6 +115,7 @@ public class TaskAppService {
         if (businessKey != null) {
             TaskDecision decision = new TaskDecision();
             decision.setRequestId(businessKey);
+            decision.setRequestType("Mandate".equals(entityType(task)) ? "Mandate" : "Claim");
             decision.setTaskId(taskId);
             decision.setTaskKey(task.taskDefinitionKey());
             decision.setTaskName(task.name());
@@ -147,14 +146,18 @@ public class TaskAppService {
         }
         Map<String, TaskDecision> byTask = decisions.findByRequestIdOrderByCreatedOnAsc(lineId).stream()
                 .collect(Collectors.toMap(TaskDecision::getTaskId, Function.identity(), (first, second) -> second));
-        return workflow.listTaskHistory(claim.getWorkflowInstanceId()).stream()
+        java.util.List<com.neo.backend.workflow.dto.TaskHistoryItem> history =
+                workflow.listTaskHistory(claim.getWorkflowInstanceId());
+        Map<String, String> names = display.namesById(
+                history.stream().map(com.neo.backend.workflow.dto.TaskHistoryItem::assignee).toList());
+        return history.stream()
                 .map(item -> new ClaimTaskView(
                         item.taskId(),
                         item.name(),
                         item.taskDefinitionKey(),
                         item.status(),
                         item.assignee(),
-                        userName(item.assignee()),
+                        display.nameOf(item.assignee(), names),
                         byTask.containsKey(item.taskId()) ? byTask.get(item.taskId()).getDecision() : null,
                         item.createdOn(),
                         item.completedOn()))
@@ -163,7 +166,10 @@ public class TaskAppService {
 
     /** The approval decisions recorded against a claim, oldest first. */
     public List<ClaimDecisionView> claimDecisions(String lineId) {
-        return decisions.findByRequestIdOrderByCreatedOnAsc(lineId).stream()
+        List<TaskDecision> rows = decisions.findByRequestIdOrderByCreatedOnAsc(lineId);
+        Map<String, String> names =
+                display.namesById(rows.stream().map(TaskDecision::getActorId).toList());
+        return rows.stream()
                 .map(decision -> new ClaimDecisionView(
                         decision.getTaskId(),
                         decision.getTaskKey(),
@@ -171,31 +177,32 @@ public class TaskAppService {
                         decision.getDecision(),
                         decision.getComment(),
                         decision.getActorId(),
-                        userName(decision.getActorId()),
+                        display.nameOf(decision.getActorId(), names),
                         decision.getCreatedOn()))
                 .toList();
-    }
-
-    private String userName(String userId) {
-        if (userId == null || userId.isBlank()) {
-            return null;
-        }
-        return users.findById(userId).map(AppUser::getName).orElse(null);
     }
 
     public TaskResponse claim(SessionUser user, String taskId) {
         TaskResponse task = workflow.getTask(taskId);
         assertCanAct(user, task);
-        return workflow.claim(taskId, user.id());
+        try {
+            return workflow.claim(taskId, user.id());
+        } catch (FlowableObjectNotFoundException exception) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Task was already completed");
+        }
     }
 
     private void assertCanAct(SessionUser user, TaskResponse task) {
+        if (!canAct(user, task)) {
+            throw new AccessDeniedException("You are not allowed to act on this task");
+        }
+    }
+
+    static boolean canAct(SessionUser user, TaskResponse task) {
         boolean assignee = task.assignee() != null && task.assignee().equals(user.id());
         boolean candidate = task.candidateGroups() != null
                 && task.candidateGroups().stream().anyMatch(user.groups()::contains);
-        if (!assignee && !candidate) {
-            throw new AccessDeniedException("You are not allowed to act on this task");
-        }
+        return assignee || candidate;
     }
 
     private String entityType(TaskResponse task) {

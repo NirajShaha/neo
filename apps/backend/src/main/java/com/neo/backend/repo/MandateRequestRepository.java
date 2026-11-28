@@ -8,9 +8,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface MandateRequestRepository extends JpaRepository<MandateRequest, String> {
     Optional<MandateRequest> findByNumber(String number);
 
+    Optional<MandateRequest> findTopByOrderByNumberDesc();
+
     List<MandateRequest> findAllByOrderByCreatedOnDesc();
 
     List<MandateRequest> findByWorkflowInstanceIdIsNotNull();
+
+    List<MandateRequest> findByNumberIn(java.util.Collection<String> numbers);
 
     List<MandateRequest> findByCreatedByOrderByCreatedOnDesc(String createdBy);
 }
