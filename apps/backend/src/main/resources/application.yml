@@ -63,8 +63,12 @@ neo:
   manager-escalation-duration: ${MANAGER_ESCALATION_DURATION:PT120H}
   storage-dir: ${STORAGE_DIR:./storage}
   workflow:
-    claim-process-key: ${CLAIM_PROCESS_KEY:}
-    sync-enabled: ${WORKFLOW_SYNC_ENABLED:true}
+    # Workflow used for new claims. Defaults to the BPMN bundled in the jar (auto-deployed from classpath:/processes).
+    # With Git sync enabled, the key of the most recently published file replaces this at runtime.
+    claim-process-key: ${CLAIM_PROCESS_KEY:claimLifecycleV5}
+    # Git-based workflow versioning is OFF by default: set WORKFLOW_SYNC_ENABLED=true (and give the backend
+    # credentials for WORKFLOW_GIT_URI) to turn it back on.
+    sync-enabled: ${WORKFLOW_SYNC_ENABLED:false}
     git-uri: ${WORKFLOW_GIT_URI:https://github.com/NirajShaha/bpmn-config-repo.git}
     git-branch: ${WORKFLOW_GIT_BRANCH:main}
     git-local-dir: ${WORKFLOW_GIT_LOCAL_DIR:./storage/workflow-source}

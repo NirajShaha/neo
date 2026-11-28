@@ -37,6 +37,8 @@ services:
       OKTA_SYNC_GROUPS: ${OKTA_SYNC_GROUPS:-true}
       OKTA_AUTO_PROVISION: ${OKTA_AUTO_PROVISION:-true}
       NEO_SEED_DEMO_USERS: ${NEO_SEED_DEMO_USERS:-false}
+      CLAIM_PROCESS_KEY: ${CLAIM_PROCESS_KEY:-claimLifecycleV5}
+      WORKFLOW_SYNC_ENABLED: ${WORKFLOW_SYNC_ENABLED:-false}
       STORAGE_DIR: /data/storage
       WORKFLOW_GIT_LOCAL_DIR: /data/workflow-source
       WORKFLOW_PROCESS_DIRECTORY: /data/workflows
