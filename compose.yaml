@@ -32,6 +32,8 @@ services:
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-manager}
       NEO_JWT_SECRET: ${NEO_JWT_SECRET:-dev-secret-change-me-min-32-chars-long-xxxxxx}
+      CLAIM_PROCESS_KEY: ${CLAIM_PROCESS_KEY:-claimLifecycleV5}
+      WORKFLOW_SYNC_ENABLED: ${WORKFLOW_SYNC_ENABLED:-false}
       STORAGE_DIR: /data/storage
       WORKFLOW_GIT_LOCAL_DIR: /data/workflow-source
       WORKFLOW_PROCESS_DIRECTORY: /data/workflows
